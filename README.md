@@ -56,16 +56,37 @@ il n'est pas mort, il n'est simplement pas du code.
 
 ---
 
+## Installation
+
+```bash
+./install.sh            # lie les 9 outils dans ~/.local/bin
+./install.sh --check    # vérifie sans rien écrire
+```
+
+Ensuite ils s'appellent **par leur nom, sans chemin** :
+
+```bash
+jamai-midi.py piece.mid
+jamai-chords.py source.mid 4
+jamai-defile.py partition.png piece.mp3 sortie.mp4 2.0
+```
+
+Une skill ne devrait jamais connaître le chemin d'un dépôt — elle appelle le
+nom. Si ce dépôt déménage, on relance `install.sh` et rien d'autre ne bouge.
+
 ## État au 14 août 2026
 
-- Les 9 scripts sont ici en **copie**. L'original vit toujours dans
-  `~/.agents/skills/jamai-morning/scripts/` et c'est encore lui qui tourne :
-  la skill `jamai-morning` pointe dessus. **Rien n'a été déplacé, rien n'est
-  cassé.** Décider quelle copie devient la source — et faire pointer l'autre
-  dessus — est la première vraie tâche.
+- **Ce dépôt est la source.** `~/.agents/skills/jamai-morning/scripts/` ne
+  contient plus de copies : les 9 entrées y sont désormais des **liens** vers
+  ce dépôt. Les appelants existants (`atelier-on-drop`, `episodes-on-drop`,
+  `jamai-clip`, qui importe `jamai-score-video.py` comme module) continuent de
+  fonctionner sans être modifiés — vérifié.
+- Deux de ces scripts — `jamai-defile.py` et `jamai-related.py` — n'étaient
+  suivis par **aucun** dépôt avant ce commit. Ils n'existaient qu'à un seul
+  endroit sur un seul disque.
 - `jamai-tab.py` n'était pas exécutable à l'origine ; il l'est ici.
-- Pas encore de paquet, pas de tests, pas d'installation. C'est voulu :
-  on emballe après avoir vu la forme, pas avant.
+- Pas encore de paquet, pas de tests. C'est voulu : on emballe après avoir vu
+  la forme, pas avant.
 
 ---
 
