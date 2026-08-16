@@ -21,13 +21,25 @@
 #   jamai-cast-visual --stop                eteint l'affichage (pas le serveur)
 #   jamai-cast-visual --rescan              rafraichit le cache des appareils
 #
-#   -d "<appareil>"   defaut : Television      (JAMAI_CAST_DEVICE)
+#   -d "<appareil>"   REQUIS                   (JAMAI_CAST_DEVICE)
 #   -p <port>         defaut : 8899            (JAMAI_CAST_PORT)
 
 set -uo pipefail
 
-DEVICE="${JAMAI_CAST_DEVICE:-Television}"
+DEVICE="${JAMAI_CAST_DEVICE:-}"
 PORT="${JAMAI_CAST_PORT:-8899}"
+if [ -z "$DEVICE" ]; then
+  cat >&2 <<'FIN'
+✗ aucun appareil nommé.
+  Ce dépôt ne connaît aucune maison : le nom de l'appareil vient de toi.
+    -d "<nom>"                          ponctuellement
+    JAMAI_CAST_DEVICE="<nom>"        pour la session
+    routine <moment> voir "…"    si tu as gmusic-routine
+  Les noms visibles ici :  catt scan
+FIN
+  exit 2
+fi
+
 WEB="$HOME/.local/share/jamai-cast/web"
 STATE="$HOME/.local/state/jamai-cast"
 HTTPLOG="$STATE/http.log"

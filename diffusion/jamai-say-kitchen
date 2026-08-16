@@ -24,14 +24,26 @@
 #   jamai-say-kitchen -v fr-CA-AntoineNeural "Voix masculine."
 #   jamai-say-kitchen --voix                 liste les voix francaises
 #
-#   -d <enceinte>  defaut : kitchen speaker   (JAMAI_SAY_DEVICE)
+#   -d <enceinte>  REQUIS                     (JAMAI_SAY_DEVICE)
 #   -v <voix>      defaut : fr-CA-SylvieNeural (JAMAI_SAY_VOICE)
 #   --garder       ne pas supprimer le mp3 apres
 
 set -uo pipefail
 
-DEVICE="${JAMAI_SAY_DEVICE:-kitchen speaker}"
+DEVICE="${JAMAI_SAY_DEVICE:-}"
 VOIX="${JAMAI_SAY_VOICE:-fr-CA-SylvieNeural}"
+if [ -z "$DEVICE" ]; then
+  cat >&2 <<'FIN'
+✗ aucun appareil nommé.
+  Ce dépôt ne connaît aucune maison : le nom de l'appareil vient de toi.
+    -d "<nom>"                          ponctuellement
+    JAMAI_SAY_DEVICE="<nom>"        pour la session
+    routine <moment> dire "…"    si tu as gmusic-routine
+  Les noms visibles ici :  catt scan
+FIN
+  exit 2
+fi
+
 DEBIT="${JAMAI_SAY_RATE:--5%}"
 GARDER=0
 CATT="${CATT:-$HOME/.local/bin/catt}"

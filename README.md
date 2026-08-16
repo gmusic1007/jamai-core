@@ -49,7 +49,12 @@ une réponse qui n'arrive que dans un terminal n'arrive pas.
 |---|---|
 | `jamai-cast-visual` | Une page HTML sur la télé. Imprime une **preuve** : la ligne du serveur montrant que l'appareil a tiré la page. |
 | `jamai-say-kitchen` | Une phrase sur l'enceinte (edge-tts, `fr-CA-SylvieNeural`). Preuve : un `Time:` qui avance. |
-| `web/_socle.css` | La seule feuille de style de la télé. Elle porte la **géométrie mesurée** par l'appareil lui-même : 1280 × 720, et la zone sûre à 93 % (1190 × 670) que Jerry a tranchée à l'œil depuis la cuisine après trois essais. Ne pas re-litiger ce chiffre. |
+
+**Ces deux commandes ne connaissent aucune maison.** Elles refusent de partir
+sans qu'on leur nomme un appareil (`-d`, ou `JAMAI_CAST_DEVICE` /
+`JAMAI_SAY_DEVICE`). Les noms d'appareils, la voix et la géométrie de l'écran
+appartiennent à **`gmusic1007/gmusic-routine`**, qui les fournit :
+`routine cuisine dire "…"`.
 
 Trois pièges payés une fois, et écrits dans les en-têtes des scripts : la télé
 **refuse l'audio seul** (donc télé = image, enceintes = son) ; `catt cast_site`
