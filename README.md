@@ -38,6 +38,22 @@ déjà quand on l'a regardé.
 |---|---|
 | `jamai-unread.py` | Les dépôts de l'atelier sur lesquels personne n'a encore travaillé. |
 | `jamai-related.py` | Trouve les unités déjà existantes qui parlent de la même chose. |
+| `jamai-voir-fork` | Suivre une session Claude en direct, en lecture seule, sans la déranger. |
+
+### `diffusion/` — atteindre Jerry quand il n'est pas devant l'écran
+
+C'est la dernière couture, et la plus jeune. Jerry compose dans sa cuisine :
+une réponse qui n'arrive que dans un terminal n'arrive pas.
+
+| script | ce qu'il fait |
+|---|---|
+| `jamai-cast-visual` | Une page HTML sur la télé. Imprime une **preuve** : la ligne du serveur montrant que l'appareil a tiré la page. |
+| `jamai-say-kitchen` | Une phrase sur l'enceinte (edge-tts, `fr-CA-SylvieNeural`). Preuve : un `Time:` qui avance. |
+| `web/_socle.css` | La seule feuille de style de la télé. Elle porte la **géométrie mesurée** par l'appareil lui-même : 1280 × 720, et la zone sûre à 93 % (1190 × 670) que Jerry a tranchée à l'œil depuis la cuisine après trois essais. Ne pas re-litiger ce chiffre. |
+
+Trois pièges payés une fois, et écrits dans les en-têtes des scripts : la télé
+**refuse l'audio seul** (donc télé = image, enceintes = son) ; `catt cast_site`
+se bloque si une app tourne déjà ; `episode say` ne parle pas à voix haute.
 
 ---
 

@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# jamai-say-kitchen — dire une phrase a voix haute sur une enceinte de
+# l'appartement, pour que Jerry l'entende sans toucher a rien.
+#
+# Ce que ce script encode, mesure le 2026-08-11 :
+#
+#  1. `episode say` NE PARLE PAS A VOIX HAUTE. Il fabrique un m4a et l'importe
+#     dans une composition du portail. Pour sonner dans la cuisine il faut le
+#     fichier AVANT l'import, puis le caster. C'est ce qu'on fait ici.
+#  2. Le fichier LOCAL est le chemin le plus rapide vers une enceinte :
+#     ~1,6 s avant que le son sorte, contre ~2,1 s pour une URL publique.
+#  3. `catt` SERT le fichier pendant toute la lecture. Si le processus meurt,
+#     le son se coupe sans un mot. On le detache, et on le tue APRES la duree.
+#  4. La preuve que ca a sonne n'est pas « la commande a repondu » : c'est
+#     `status` qui montre un temps qui AVANCE. Les 2 premiers sondages rendent
+#     souvent juste le volume — l'appareil n'a pas encore charge. Il faut
+#     insister, pas conclure.
+#  5. NE JAMAIS ecrire l'audio sous ~/Recordings-jamai : la veille jamai-watch
+#     prendrait notre annonce pour un depot de Jerry et la ferait transcrire.
+#
+# Usage :
+#   jamai-say-kitchen "Opus 011, Pic-bois. La partition est a l'ecran."
+#   jamai-say-kitchen -d "Bedroom speaker" "Bonne nuit."
+#   jamai-say-kitchen -v fr-CA-AntoineNeural "Voix masculine."
+#   jamai-say-kitchen --voix                 liste les voix francaises
+#
+#   -d <enceinte>  defaut : kitchen speaker   (JAMAI_SAY_DEVICE)
+#   -v <voix>      defaut : fr-CA-SylvieNeural (JAMAI_SAY_VOICE)
+#   --garder       ne pas supprimer le mp3 apres
+
+set -uo pipefail
+
+DEVICE="${JAMAI_SAY_DEVICE:-kitchen speaker}"
+VOIX="${JAMAI_SAY_VOICE:-fr-CA-SylvieNeural}"
+DEBIT="${JAMAI_SAY_RATE:--5%}"
+GARDER=0
+CATT="${CATT:-$HOME/.local/bin/catt}"
+EDGE="${EDGE_TTS:-$(command -v edge-tts || echo /opt/anaconda3/bin/edge-tts)}"
+VOIXDIR="$HOME/.local/state/jamai-cast/voix"   # JAMAIS sous ~/Recordings-jamai
+
+die(){ printf '✗ %s\n' "$*" >&2; exit 1; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -d) DEVICE="${2:?}"; shift 2 ;;
+    -v) VOIX="${2:?}"; shift 2 ;;
+    --garder) GARDER=1; shift ;;
+    --voix) timeout 60 "$EDGE" --list-voices | grep -i '^fr-'; exit 0 ;;
+    *) break ;;
+  esac
+done
+TEXTE="${1:-}"
+[ -n "$TEXTE" ] || die "quoi dire ? (jamai-say-kitchen \"…\")"
+[ -x "$EDGE" ] || die "edge-tts introuvable"
+
+mkdir -p "$VOIXDIR"
+MP3="$VOIXDIR/$(date +%y%m%d%H%M%S).mp3"
+
+timeout 120 "$EDGE" --voice "$VOIX" --rate="$DEBIT" --text "$TEXTE" \
+  --write-media "$MP3" >/dev/null 2>&1 \
+  || die "la synthese a echoue (edge-tts a besoin d'internet)"
+[ -s "$MP3" ] || die "mp3 vide"
+
+DUREE=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MP3" 2>/dev/null)
+DUREE=${DUREE%.*}; DUREE=${DUREE:-10}
+
+printf '→ %s : « %s »  (%s, %ss)\n' "$DEVICE" "$TEXTE" "$VOIX" "$DUREE"
+
+# Piege n°3 : detache, et on le tue seulement apres la duree reelle.
+setsid nohup "$CATT" -d "$DEVICE" cast "$MP3" >"$VOIXDIR/dernier-cast.log" 2>&1 &
+PID=$!
+( sleep $((DUREE + 8)); kill "$PID" 2>/dev/null
+  [ "$GARDER" = 1 ] || rm -f "$MP3" ) >/dev/null 2>&1 &
+
+# Piege n°4 : insister jusqu'a voir un temps qui avance.
+for i in $(seq 1 12); do
+  ETAT=$(timeout 25 "$CATT" -d "$DEVICE" status 2>/dev/null)
+  T=$(printf '%s' "$ETAT" | sed -n 's/^Time: \([0-9:]*\) .*/\1/p' | head -1)
+  if printf '%s' "$ETAT" | grep -q 'State: PLAYING' && [ -n "$T" ] && [ "$T" != "00:00:00" ]; then
+    printf '✓ PREUVE : ça sonne — %s / %s\n' "$T" \
+      "$(printf '%s' "$ETAT" | sed -n 's|^Time: [0-9:]* / \([0-9:]*\).*|\1|p' | head -1)"
+    exit 0
+  fi
+done
+printf '⚠ jamais vu jouer en 12 sondages. log : %s\n' "$(tr '\n' ' ' <"$VOIXDIR/dernier-cast.log")"
+exit 1
