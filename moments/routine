@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# routine — enter a moment of someone's day, and run a tool inside it.
+#
+# The TOOLS in this repository know nothing about any house. A moment supplies
+# the missing half: which device answers, in which voice, and in what tone.
+# `routine` is the hinge — it reads a moment, exports its settings, and runs
+# the tool inside them.
+#
+#   routine                         list the moments
+#   routine new                     write a new one (it scans first, then asks)
+#   routine kitchen                 the exports, for `eval $(routine kitchen)`
+#   routine kitchen say "…"         speak on this moment's speaker
+#   routine kitchen show page.html  display on this moment's screen
+#   routine kitchen posture         what an agent must read before answering
+#   routine kitchen enter | exit    the arrival and departure hooks
+#   routine kitchen <command…>      anything else, inside that environment
+#
+# Moments live OUTSIDE this repository — they name your devices, so they are
+# yours. Default: ~/.config/gmusic-routine/moments  (override: $GMUSIC_MOMENTS)
+set -euo pipefail
+
+DIR="${GMUSIC_MOMENTS:-$HOME/.config/gmusic-routine/moments}"
+
+list() {
+  if [ ! -d "$DIR" ] || ! compgen -G "$DIR/*.moment" >/dev/null; then
+    cat <<FIN
+no moments yet — $DIR is empty.
+
+A moment says which device reaches you, and when. Write one:
+    routine new
+FIN
+    return
+  fi
+  echo "moments:"
+  for f in "$DIR"/*.moment; do
+    n=$(basename "$f" .moment)
+    d=$(sed -n 's/^# [^—]*— *\(.*\)/\1/p' "$f" | head -1)
+    printf '  %-12s %s\n' "$n" "$d"
+  done
+}
+
+# ── routine new — the questionnaire only asks what it cannot see ────────────
+create() {
+  local NAME="" SCREEN="" SPEAKER="" VOICE="fr-CA-SylvieNeural" POSTURE="" TRIGGERS=""
+  while [ $# -gt 0 ]; do case "$1" in
+    --name)     NAME="${2:?}"; shift 2 ;;   --screen)  SCREEN="${2:?}"; shift 2 ;;
+    --speaker)  SPEAKER="${2:?}"; shift 2 ;; --voice)  VOICE="${2:?}"; shift 2 ;;
+    --posture)  POSTURE="${2:?}"; shift 2 ;; --triggers) TRIGGERS="${2:?}"; shift 2 ;;
+    *) echo "unknown option: $1" >&2; exit 1 ;;
+  esac; done
+
+  if [ -t 0 ] && [ -z "$NAME" ]; then
+    echo "… looking at what is actually on this network" >&2
+    timeout 25 catt scan 2>/dev/null | grep -v Scanning | sed 's/ - Google Inc\./ ·/' || true
+    echo
+    read -rp "moment name (kitchen, bath, bedtime…) : " NAME
+    read -rp "screen, or empty if there is none     : " SCREEN
+    read -rp "speaker, or empty                     : " SPEAKER
+    read -rp "voice [$VOICE] : " v; VOICE="${v:-$VOICE}"
+    read -rp "what you will say to open it          : " TRIGGERS
+    read -rp "posture — long, or one line?          : " POSTURE
+  fi
+  [ -n "$NAME" ] || { echo "at least --name is required" >&2; exit 1; }
+  [ -n "$SCREEN$SPEAKER" ] || echo "⚠ this moment has neither screen nor speaker — it can only stay silent." >&2
+
+  mkdir -p "$DIR"
+  local F="$DIR/$NAME.moment"
+  [ -e "$F" ] && { echo "already exists: $F" >&2; exit 1; }
+  {
+    echo "# $NAME — written by \`routine new\`."
+    echo
+    echo "NAME=\"$NAME\""
+    echo "TRIGGERS=\"${TRIGGERS:-I am in the $NAME}\""
+    [ -n "$SCREEN" ]  && echo "JAMAI_CAST_DEVICE=\"$SCREEN\""
+    [ -n "$SPEAKER" ] && echo "JAMAI_SAY_DEVICE=\"$SPEAKER\""
+    [ -n "$SPEAKER" ] && echo "JAMAI_SAY_VOICE=\"$VOICE\""
+    echo "POSTURE=\"${POSTURE:-(to write: how much to tell, and how)}\""
+    echo "ON_ENTER=\"\""
+    [ -n "$SCREEN" ] && echo "ON_EXIT=\"jamai-cast --stop\"" || echo "ON_EXIT=\"\""
+  } > "$F"
+  echo "✓ $F"
+  echo "  try:  routine $NAME posture   |   routine $NAME say \"hello\""
+}
+
+[ $# -ge 1 ] || { list; exit 0; }
+[ "$1" = "new" ] && { shift; create "$@"; exit 0; }
+
+WANTED="$1"; shift
+FILE="$DIR/$WANTED.moment"
+[ -f "$FILE" ] || { echo "unknown moment: $WANTED" >&2; list >&2; exit 1; }
+set -a; . "$FILE"; set +a
+
+case "${1:-}" in
+  ""|--env)
+    for v in JAMAI_CAST_DEVICE JAMAI_CAST_PORT JAMAI_SAY_DEVICE JAMAI_SAY_VOICE JAMAI_SAY_RATE; do
+      [ -n "${!v:-}" ] && printf 'export %s=%q\n' "$v" "${!v}"
+    done; exit 0 ;;
+  posture) printf '%s\n' "${POSTURE:-(no posture declared)}"; exit 0 ;;
+  enter)   [ -n "${ON_ENTER:-}" ] && exec bash -c "$ON_ENTER"; exit 0 ;;
+  exit)    [ -n "${ON_EXIT:-}" ]  && exec bash -c "$ON_EXIT";  exit 0 ;;
+  say)     shift; exec jamai-say "$@" ;;
+  show)    shift; exec jamai-cast "$@" ;;
+  *)       exec "$@" ;;
+esac

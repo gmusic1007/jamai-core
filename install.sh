@@ -13,11 +13,12 @@ set -euo pipefail
 
 RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CIBLE="${JAMAI_BIN:-$HOME/.local/bin}"
-OUTILS=(ecoute/jamai-midi.py ecoute/jamai-chords.py ecoute/jamai-chords-audio.py
-        ecoute/jamai-measure.py rendu/jamai-tab.py rendu/jamai-score-video.py
-        rendu/jamai-defile.py atelier/jamai-unread.py atelier/jamai-related.py
-        atelier/jamai-voir-fork
-        diffusion/jamai-cast-visual diffusion/jamai-say-kitchen)
+TOOLS=(listen/jamai-midi.py listen/jamai-chords.py listen/jamai-chords-audio.py
+        listen/jamai-measure.py render/jamai-tab.py render/jamai-score-video.py
+        render/jamai-scroll.py workshop/jamai-unread.py workshop/jamai-related.py
+        workshop/jamai-follow-fork
+        broadcast/jamai-cast broadcast/jamai-say
+        moments/routine)
 
 # La géométrie de la télé n'est pas ici : elle appartient à une maison.
 # Voir gmusic1007/gmusic-routine, qui pose _socle.css et le nom des appareils.
@@ -25,7 +26,7 @@ OUTILS=(ecoute/jamai-midi.py ecoute/jamai-chords.py ecoute/jamai-chords-audio.py
 mode="${1:-install}"
 mkdir -p "$CIBLE"
 n=0
-for rel in "${OUTILS[@]}"; do
+for rel in "${TOOLS[@]}"; do
   src="$RACINE/$rel"; nom="$(basename "$rel")"; dst="$CIBLE/$nom"
   case "$mode" in
     --check)
@@ -41,7 +42,7 @@ for rel in "${OUTILS[@]}"; do
   esac
 done
 
-echo "$n / ${#OUTILS[@]} — $CIBLE"
+echo "$n / ${#TOOLS[@]} — $CIBLE"
 case ":$PATH:" in
   *":$CIBLE:"*) ;;
   *) echo "⚠ $CIBLE n'est pas dans le PATH — ajoute-le à ton shell." ;;

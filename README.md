@@ -10,12 +10,12 @@ quelque chose manquait.
 
 ---
 
-## Les trois coutures
+## Les coutures
 
 Ce ne sont pas des dossiers choisis d'avance — c'est la forme que le code avait
 déjà quand on l'a regardé.
 
-### `ecoute/` — comprendre ce qui a été joué
+### `listen/` — comprendre ce qui a été joué
 
 | script | ce qu'il fait |
 |---|---|
@@ -24,31 +24,31 @@ déjà quand on l'a regardé.
 | `jamai-chords-audio.py` | Accords et tonalité depuis un **enregistrement**, pas un MIDI. |
 | `jamai-measure.py` | Mesure d'un enregistrement : structure, tempo, hauteurs, timbre. |
 
-### `rendu/` — donner à voir et à entendre
+### `render/` — donner à voir et à entendre
 
 | script | ce qu'il fait |
 |---|---|
 | `jamai-tab.py` | Tablature guitare à six lignes, depuis un fichier ABC. |
 | `jamai-score-video.py` | Vidéo de partition qui suit la musique, système par système. |
-| `jamai-defile.py` | Vidéo qui **défile de gauche à droite**, tête de lecture rouge. |
+| `jamai-scroll.py` | Vidéo qui **défile de gauche à droite**, tête de lecture rouge. |
 
-### `atelier/` — savoir où on en est
+### `workshop/` — savoir où on en est
 
 | script | ce qu'il fait |
 |---|---|
 | `jamai-unread.py` | Les dépôts de l'atelier sur lesquels personne n'a encore travaillé. |
 | `jamai-related.py` | Trouve les unités déjà existantes qui parlent de la même chose. |
-| `jamai-voir-fork` | Suivre une session Claude en direct, en lecture seule, sans la déranger. |
+| `jamai-follow-fork` | Suivre une session Claude en direct, en lecture seule, sans la déranger. |
 
-### `diffusion/` — atteindre Jerry quand il n'est pas devant l'écran
+### `broadcast/` — atteindre Jerry quand il n'est pas devant l'écran
 
 C'est la dernière couture, et la plus jeune. Jerry compose dans sa cuisine :
 une réponse qui n'arrive que dans un terminal n'arrive pas.
 
 | script | ce qu'il fait |
 |---|---|
-| `jamai-cast-visual` | Une page HTML sur la télé. Imprime une **preuve** : la ligne du serveur montrant que l'appareil a tiré la page. |
-| `jamai-say-kitchen` | Une phrase sur l'enceinte (edge-tts, `fr-CA-SylvieNeural`). Preuve : un `Time:` qui avance. |
+| `jamai-cast` | Une page HTML sur la télé. Imprime une **preuve** : la ligne du serveur montrant que l'appareil a tiré la page. |
+| `jamai-say` | Une phrase sur l'enceinte (edge-tts, `fr-CA-SylvieNeural`). Preuve : un `Time:` qui avance. |
 
 **Ces deux commandes ne connaissent aucune maison.** Elles refusent de partir
 sans qu'on leur nomme un appareil (`-d`, ou `JAMAI_CAST_DEVICE` /
@@ -89,11 +89,26 @@ Ensuite ils s'appellent **par leur nom, sans chemin** :
 ```bash
 jamai-midi.py piece.mid
 jamai-chords.py source.mid 4
-jamai-defile.py partition.png piece.mp3 sortie.mp4 2.0
+jamai-scroll.py partition.png piece.mp3 sortie.mp4 2.0
 ```
 
 Une skill ne devrait jamais connaître le chemin d'un dépôt — elle appelle le
 nom. Si ce dépôt déménage, on relance `install.sh` et rien d'autre ne bouge.
+
+### `moments/` — la charnière
+
+`routine` fait le lien entre un outil qui ne connaît aucune maison et une
+maison qui a des appareils. Les **moments** eux-mêmes vivent ailleurs (ils
+nomment tes appareils, donc ils sont à toi) : par défaut
+`~/.config/gmusic-routine/moments`.
+
+```bash
+routine                          les moments déclarés
+routine new                      en écrire un — il scanne avant de demander
+routine kitchen say "…"          la voix, sur l'enceinte de ce moment
+routine kitchen show page.html   l'image, sur l'écran de ce moment
+routine kitchen posture          ce qu'un agent lit avant de répondre
+```
 
 ## État au 14 août 2026
 
@@ -102,7 +117,7 @@ nom. Si ce dépôt déménage, on relance `install.sh` et rien d'autre ne bouge.
   ce dépôt. Les appelants existants (`atelier-on-drop`, `episodes-on-drop`,
   `jamai-clip`, qui importe `jamai-score-video.py` comme module) continuent de
   fonctionner sans être modifiés — vérifié.
-- Deux de ces scripts — `jamai-defile.py` et `jamai-related.py` — n'étaient
+- Deux de ces scripts — `jamai-scroll.py` et `jamai-related.py` — n'étaient
   suivis par **aucun** dépôt avant ce commit. Ils n'existaient qu'à un seul
   endroit sur un seul disque.
 - `jamai-tab.py` n'était pas exécutable à l'origine ; il l'est ici.
@@ -115,7 +130,7 @@ nom. Si ce dépôt déménage, on relance `install.sh` et rien d'autre ne bouge.
 
 Ces outils ne vivent pas seuls. À côté d'eux, hors de ce dépôt pour l'instant :
 `jamai-publish-melody` (ABC → MP3 + partition, publié sur
-gmusicassembly.com/jamai/melody/), `jamai-cast-visual` et `jamai-say-kitchen`
+gmusicassembly.com/jamai/melody/), `jamai-cast` et `jamai-say`
 (l'image sur la télé, la voix sur l'enceinte — l'interface quand Jerry n'est
 pas devant l'écran), `jamai-morning` et `jamai-on-drop`.
 
