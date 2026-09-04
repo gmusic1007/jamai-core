@@ -10,7 +10,7 @@ dériverait d'une mesure entière au milieu. On détecte donc les barres de mesu
 dans l'image, et on construit un panoramique par MORCEAUX — une mesure de
 musique = un segment de pixels, exactement.
 
-  scroll.py <partition.png> <audio.mp3> <sortie.mp4> <sec_par_mesure> <nb_mesures>
+  scroll.py <partition.png> <audio.mp3> <sortie.mp4> <sec_par_mesure> <nb_mesures> [partition.svg]
 
 Le nombre de mesures est OBLIGATOIRE et sert de contrôle : si la détection ne
 le retrouve pas, l'outil s'arrête au lieu de fabriquer une vidéo désynchronisée.
@@ -40,44 +40,80 @@ FEN_L, CANVAS_H = 1280, 720
 im = np.array(Image.open(png).convert('L'))
 h, w = im.shape
 
-# ── détection des barres de mesure ─────────────────────────────────────────
-# On ne compte PAS les colonnes sombres : une hampe d'accord en fait autant
-# qu'une barre. On mesure le plus long segment vertical CONTIGU de chaque
-# colonne — une barre traverse la portée entière, une hampe non.
-dark = im < 128
-longest = np.zeros(w, dtype=int)
-for x in range(w):
-    c = dark[:, x]
-    if not c.any(): continue
-    best = cur = 0
-    for v in c:
-        cur = cur + 1 if v else 0
-        if cur > best: best = cur
-    longest[x] = best
-cand = np.where(longest >= int(0.25*h))[0]
-groups, cur = [], [cand[0]]
-for x in cand[1:]:
-    if x - cur[-1] <= 4: cur.append(x)
-    else: groups.append(int(np.mean(cur))); cur = [x]
-groups.append(int(np.mean(cur)))
+# ── D'OÙ VIENNENT LES POSITIONS DE MESURE ──────────────────────────────────
+# Deux chemins. Le SVG quand on l'a, les pixels sinon.
+#
+# Ajouté le 2026-09-03. La détection au pixel plus bas cherche le plus long
+# trait vertical CONTIGU de chaque colonne. Sur une partition d'accords
+# frappés, la hampe d'un accord de six notes est aussi haute qu'une barre :
+# mesuré sur la guitare des couplets de l'opus 014, 31 mesures détectées
+# pour 4. Le garde-fou a refusé de fabriquer la vidéo — le bon réflexe — mais
+# il n'existait aucun recours ici, alors que jamai-clip.py en avait un depuis
+# le 2026-08-14. Deux outils voisins, une seule corrigé. C'est réparé.
+#
+# abcm2ps écrit déjà les numéros de mesure dans le SVG avec leur abscisse
+# exacte, à condition de mettre `%%measurenb 1` dans la source. On les lit :
+# plus de seuil, plus de devinette, et ça marche quel que soit le nombre de
+# portées ou la densité des accords.
+SVG = sys.argv[6] if len(sys.argv) > 6 else None
+if SVG:
+    import re
+    t = open(SVG).read()
+    m = re.search(r'width="([\d.]+)px"\s+height="([\d.]+)', t)
+    if not m: sys.exit(f"  ✗ pas de largeur lisible dans {SVG}")
+    ech = w / float(m[1])                # le PNG est rendu à une autre échelle
+    nums = sorted({int(n): float(x) for x, n in
+                   re.findall(r'<text x="([\d.]+)" y="[\d.]+">(\d+)</text>', t)
+                   if 1 < int(n) <= NB_ATTENDU}.items())
+    if len(nums) != NB_ATTENDU - 1:
+        sys.exit(f"  ✗ {len(nums)} numéros de mesure dans le SVG, {NB_ATTENDU-1} attendus. "
+                 f"`%%measurenb 1` est-il dans la source ABC ?")
+    xs = [v * ech for _, v in nums]      # début des mesures 2..N
+    pas = xs[1] - xs[0]
+    X = [xs[0] - pas] + xs + [xs[-1] + (xs[-1] - xs[-2])]
+    NB = len(X) - 1
+    print(f"  {w}x{h} px · {NB} mesures lues DANS LE SVG")
+    if NB != NB_ATTENDU:
+        sys.exit(f"  ✗ ARRÊT : {NB} mesures, {NB_ATTENDU} attendues.")
+else:
+    # ── détection des barres de mesure ─────────────────────────────────────────
+    # On ne compte PAS les colonnes sombres : une hampe d'accord en fait autant
+    # qu'une barre. On mesure le plus long segment vertical CONTIGU de chaque
+    # colonne — une barre traverse la portée entière, une hampe non.
+    dark = im < 128
+    longest = np.zeros(w, dtype=int)
+    for x in range(w):
+        c = dark[:, x]
+        if not c.any(): continue
+        best = cur = 0
+        for v in c:
+            cur = cur + 1 if v else 0
+            if cur > best: best = cur
+        longest[x] = best
+    cand = np.where(longest >= int(0.25*h))[0]
+    groups, cur = [], [cand[0]]
+    for x in cand[1:]:
+        if x - cur[-1] <= 4: cur.append(x)
+        else: groups.append(int(np.mean(cur))); cur = [x]
+    groups.append(int(np.mean(cur)))
 
-# La BARRE FINALE est double : deux traits que le détecteur sépare (mesuré :
-# 14815 et 14829 sur l'intégrale). Deux colonnes à moins de 30 px l'une de
-# l'autre sont le même repère — on garde la dernière.
-# (J'ai d'abord cru que la colonne en trop était l'accolade à gauche, et je
-#  l'ai retirée : le compte devenait juste et la vidéo décalée d'une mesure.
-#  Le compte qui tombe juste n'est pas une preuve — seule l'image l'est.)
-fusion = [groups[0]]
-for x in groups[1:]:
-    if x - fusion[-1] < 30: fusion[-1] = x
-    else: fusion.append(x)
-groups = fusion
-X = groups
-NB = len(X) - 1
-print(f"  {w}x{h} px · {NB} mesures détectées · barres {X[0]} → {X[-1]}")
-if NB_ATTENDU and NB != NB_ATTENDU:
-    sys.exit(f"  ✗ ARRÊT : {NB} mesures détectées, {NB_ATTENDU} attendues. "
-             f"Une vidéo fabriquée là-dessus serait désynchronisée.")
+    # La BARRE FINALE est double : deux traits que le détecteur sépare (mesuré :
+    # 14815 et 14829 sur l'intégrale). Deux colonnes à moins de 30 px l'une de
+    # l'autre sont le même repère — on garde la dernière.
+    # (J'ai d'abord cru que la colonne en trop était l'accolade à gauche, et je
+    #  l'ai retirée : le compte devenait juste et la vidéo décalée d'une mesure.
+    #  Le compte qui tombe juste n'est pas une preuve — seule l'image l'est.)
+    fusion = [groups[0]]
+    for x in groups[1:]:
+        if x - fusion[-1] < 30: fusion[-1] = x
+        else: fusion.append(x)
+    groups = fusion
+    X = groups
+    NB = len(X) - 1
+    print(f"  {w}x{h} px · {NB} mesures détectées · barres {X[0]} → {X[-1]}")
+    if NB_ATTENDU and NB != NB_ATTENDU:
+        sys.exit(f"  ✗ ARRÊT : {NB} mesures détectées, {NB_ATTENDU} attendues. "
+                 f"Une vidéo fabriquée là-dessus serait désynchronisée.")
 
 # ── panoramique par morceaux ───────────────────────────────────────────────
 # x_tete(t) = position de la mesure en train de sonner.
