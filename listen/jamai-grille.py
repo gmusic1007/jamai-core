@@ -385,9 +385,20 @@ def ecrire_abc(notes, grille, lev, degres, tonalite, titre, tempo_bpm):
                 pieces.append({'mes': pos // par_mes, 'm': m, 'k': k, 'pp': pp, 'id': i})
             pos += prend; reste -= prend
 
-    # La dernière mesure se compte sur les MORCEAUX réellement produits, pas
-    # sur une prévision : une note finale plus longue que son intervalle pousse
-    # au-delà du total prévu, et l'index sortait du tableau.
+    # La derniere mesure se compte sur les MORCEAUX reellement produits, pas
+    # sur une prevision : une note finale plus longue que son intervalle pousse
+    # au-dela du total prevu, et l'index sortait du tableau.
+    #
+    # ET ELLE SE COMPLETE. Sans ce rembourrage la derniere mesure sort courte :
+    # abc2midi previent (« Track 2 is 44 quarter notes long not 43 ») mais
+    # ecrit quand meme, et les voix d'accompagnement debordent d'un temps sur
+    # une mesure que personne ne regarde. Mesure sur comp-0001 le 2026-09-07.
+    fin = pieces[-1]['pp'] + pieces[-1]['k']
+    if fin % par_mes:
+        manque = par_mes - (fin % par_mes)
+        for pp, k in morceaux(fin % par_mes, manque, False, ternaire):
+            pieces.append({'mes': pieces[-1]['mes'], 'm': None, 'k': k,
+                           'pp': pp, 'id': -1})
     barres = [[] for _ in range(max(pc['mes'] for pc in pieces) + 1)]
     for j, pc in enumerate(pieces):
         # UNE LIAISON NE JOINT QUE DES MORCEAUX DU MÊME ÉVÉNEMENT. Sans cette
