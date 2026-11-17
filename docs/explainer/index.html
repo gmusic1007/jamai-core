@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jamai-core, explained</title>
+<meta name="description" content="How JamAI's composition workshop became a package: one command to install, a melody page of your own, and webhooks people subscribe to.">
+<style>
+:root{
+  --bg:#0c0f14; --soft:#141923; --raise:#1b2230; --ink:#e8eef7; --dim:#93a0b2;
+  --accent:#f0a868; --accent2:#8bd0c4; --line:#2a3a50; --string:#c89b6a; --good:#9bd48a; --held:#e9c46a;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f7f4ee; --soft:#fffdf8; --raise:#f1ece2; --ink:#1c2430; --dim:#586273;
+         --accent:#a8551a; --accent2:#1f6f66; --line:#d8d1c3; --string:#7a4f1d; --good:#2f6b22; --held:#8a6400; }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.6;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:2.4rem 16px 4rem}
+a{color:var(--accent2)} a:hover{color:var(--accent)}
+header{border-bottom:1px solid var(--line);padding-bottom:1.6rem;margin-bottom:.6rem}
+.glyphs{color:var(--accent);letter-spacing:.25rem;font-size:1.3rem}
+h1{font-size:clamp(1.8rem,5vw,2.6rem);line-height:1.15;margin:.5rem 0 .6rem;font-weight:650;text-wrap:balance}
+h2{font-size:1.35rem;margin:2.6rem 0 .3rem;font-weight:620;text-wrap:balance}
+h3{font-size:1rem;margin:0 0 .3rem;font-weight:620}
+p{margin:.6rem 0}
+.lede{font-size:1.08rem;max-width:62ch}
+.dim{color:var(--dim)} .small{font-size:.88rem}
+code,pre{font-family:"JetBrains Mono","Fira Code",Menlo,Consolas,monospace}
+code{font-size:.88em;background:var(--raise);padding:.08em .35em;border-radius:4px}
+pre{background:#060810;color:var(--string);border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;
+  overflow-x:auto;font-size:.84rem;line-height:1.55;margin:.8rem 0}
+@media (prefers-color-scheme: light){ pre{background:#1c2430;color:#f0d7b4} }
+pre .c{color:#7f8da0} pre .o{color:#9bd48a}
+
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin:1.4rem 0 0}
+.fact{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:.8rem .9rem}
+.fact b{display:block;font-size:1.7rem;line-height:1.1;color:var(--accent);font-variant-numeric:tabular-nums}
+.fact span{font-size:.86rem;color:var(--dim)}
+
+/* the path of a melody */
+.path{display:flex;flex-wrap:wrap;gap:.5rem;align-items:stretch;margin:1rem 0 .4rem;padding:0;list-style:none;counter-reset:step}
+.path li{flex:1 1 150px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:.75rem .85rem;position:relative}
+.path li::before{counter-increment:step;content:counter(step);display:inline-grid;place-items:center;width:1.5rem;height:1.5rem;
+  border-radius:50%;background:var(--accent);color:var(--bg);font-size:.8rem;font-weight:700;margin-bottom:.35rem}
+.path li.own{border-color:var(--accent2)}
+.path b{display:block}
+.path span{font-size:.86rem;color:var(--dim)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.8rem;margin:1rem 0}
+.card{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem}
+.card p{margin:.35rem 0;font-size:.93rem}
+.card ul{margin:.4rem 0 0;padding-left:1.1rem;font-size:.92rem}
+.card li{margin:.2rem 0}
+.tag{display:inline-block;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;border:1px solid currentColor;
+  border-radius:999px;padding:.05rem .5rem;margin-bottom:.45rem}
+.tag.done{color:var(--good)} .tag.next{color:var(--held)} .tag.ask{color:var(--accent2)}
+
+figure{margin:1.2rem 0;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:1rem}
+figure svg{display:block;width:100%;max-width:380px;height:auto;margin:0 auto}
+figcaption{font-size:.86rem;color:var(--dim);margin-top:.7rem;text-align:center}
+svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;fill:var(--ink)}
+svg .box{fill:var(--raise);stroke:var(--line);stroke-width:1.2}
+svg .hub{fill:var(--raise);stroke:var(--accent);stroke-width:1.6}
+svg .wire{stroke:var(--accent2);stroke-width:1.6;fill:none}
+svg .no{stroke:var(--dim);stroke-width:1.4;stroke-dasharray:4 4;fill:none}
+svg .sub{fill:var(--dim);font-size:12px}
+svg .lab{font-size:14px;font-weight:600}
+
+table{width:100%;border-collapse:collapse;margin:.8rem 0;font-size:.93rem}
+th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.04em}
+.scroll{overflow-x:auto}
+footer{margin-top:3rem;padding-top:1.4rem;border-top:1px solid var(--line);color:var(--dim);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="glyphs" aria-hidden="true">♠️ 🌿 🎸 🧵</div>
+  <h1>The workshop becomes a package</h1>
+  <p class="lede">jamai-core is the set of tools JamAI uses to listen to what Jerry plays, turn it into a score and
+  a sound, and publish it. On 16 November 2026 it was made installable by someone who has never seen the house
+  it grew in. This page shows what was built that evening and how the parts connect.</p>
+  <div class="facts">
+    <div class="fact"><b>1</b><span>command to install</span></div>
+    <div class="fact"><b>19</b><span>commands linked</span></div>
+    <div class="fact"><b>24</b><span>settings declared, 13 asked</span></div>
+    <div class="fact"><b>69</b><span>checks in the self-test, all passing</span></div>
+    <div class="fact"><b>9</b><span>tools offered to an agent</span></div>
+  </div>
+</header>
+
+<h2>The path of a melody</h2>
+<p class="dim">Steps 1 to 4 existed before, spread over two repositories. Steps 5 to 7 are new.</p>
+<ol class="path">
+  <li><b>Write</b><span>ABC notation: a text file with the title, key, meter and the notes.</span></li>
+  <li><b>Render</b><span>abc2midi makes the MIDI, FluidSynth plays it through a soundfont, LAME writes the MP3.</span></li>
+  <li><b>Engrave</b><span>abcm2ps draws the score as SVG.</span></li>
+  <li><b>Publish</b><span>The files go to your melody folder. The page that lists them is rebuilt.</span></li>
+  <li class="own"><b>Announce</b><span>One fact is written to a ledger: a new melody, or a revised one.</span></li>
+  <li class="own"><b>Deliver</b><span>The hub sends that fact once to each subscriber, signed.</span></li>
+  <li class="own"><b>Receive</b><span>A subscriber's webhook gets the title and the links to the MP3, MIDI and score.</span></li>
+</ol>
+
+<h2>One command, and it asks</h2>
+<p>Every value the tools need is declared once, in a file named <code>settings</code>, with what it is for and its
+default. The installer reads that file, so nothing is asked that is not declared and nothing is declared twice.</p>
+<pre><span class="c"># from a clone of the repository</span>
+./install.sh
+
+JAMAI_MELODY_DIR
+  Folder that receives each published melody and the page that lists them.
+  [/home/you/.local/share/jamai/site/melody] &gt; <span class="o">⏎</span>
+
+JAMAI_PUBLIC_BASE
+  Public address of that folder, such as https://example.org/melody. Empty: the page opens from the folder.
+  [] &gt; <span class="o">https://music.example.org/melody</span>
+<span class="c">…</span>
+19 / 19 commands linked in /home/you/.local/bin
+Render chain: whole. You can render and publish a melody.</pre>
+<div class="grid">
+  <div class="card"><h3>1 · Ask</h3><p>Thirteen questions, each with its purpose and a value in brackets. Enter keeps it.</p></div>
+  <div class="card"><h3>2 · Write</h3><p>Answers go to one plain file. The single secret is generated and kept apart, readable only by you.</p></div>
+  <div class="card"><h3>3 · Link</h3><p>Commands are linked by name. A file already there is renamed and kept, never deleted.</p></div>
+  <div class="card"><h3>4 · Check</h3><p><code>jamai doctor</code> names each missing program, the package that brings it, and what stops without it.</p></div>
+</div>
+<p class="small dim">A value is looked for in three places, in this order: your shell's environment, your settings file,
+the declared default. <code>jamai config show</code> prints each value with the place it came from.</p>
+
+<h2>Three ways a publication can go</h2>
+<p>The same melody is often published several times in a few minutes while it is being corrected. Subscribers
+should hear about the music, not about each correction. The publisher compares the new MIDI file with the one
+already published.</p>
+<div class="scroll"><table>
+<thead><tr><th>What changed</th><th>Fact announced</th><th>What a subscriber receives</th></tr></thead>
+<tbody>
+<tr><td>The melody is new</td><td><code>melody.published</code></td><td>One delivery</td></tr>
+<tr><td>The notes or the instruments changed</td><td><code>melody.revised</code></td><td>One delivery, naming the version it replaces</td></tr>
+<tr><td>Only the engraving changed, the MIDI is identical</td><td>none</td><td>Nothing</td></tr>
+</tbody></table></div>
+<p class="small dim">The rule comes from a real case: one piece was published three times in fifteen minutes on 16 November,
+and the second publication changed nothing that could be heard.</p>
+
+<h2>The hub</h2>
+<figure>
+<svg viewBox="0 0 340 470" role="img" aria-labelledby="hubt hubd">
+  <title id="hubt">How a fact travels from the publisher to subscribers</title>
+  <desc id="hubd">The publisher writes a fact to a ledger. The hub reads the ledger and posts the fact to each public webhook. A webhook pointing at a private address is refused.</desc>
+  <rect class="box" x="70" y="10" width="200" height="52" rx="8"/>
+  <text class="lab" x="170" y="32" text-anchor="middle">jamai-publish-melody</text>
+  <text class="sub" x="170" y="50" text-anchor="middle">writes, delivers nothing</text>
+  <path class="wire" d="M170 62 V92"/><path class="wire" d="M164 84 L170 92 L176 84"/>
+  <rect class="box" x="70" y="92" width="200" height="52" rx="8"/>
+  <text class="lab" x="170" y="114" text-anchor="middle">ledger</text>
+  <text class="sub" x="170" y="132" text-anchor="middle">one line per fact</text>
+  <path class="wire" d="M170 144 V174"/><path class="wire" d="M164 166 L170 174 L176 166"/>
+  <rect class="hub" x="70" y="174" width="200" height="70" rx="10"/>
+  <text class="lab" x="170" y="198" text-anchor="middle">jamai-hub</text>
+  <text class="sub" x="170" y="216" text-anchor="middle">signs each delivery with</text>
+  <text class="sub" x="170" y="231" text-anchor="middle">the subscriber's secret</text>
+  <path class="wire" d="M70 209 H40 V376 H70"/><path class="wire" d="M40 314 H70"/>
+  <path class="wire" d="M62 308 L70 314 L62 320"/><path class="wire" d="M62 370 L70 376 L62 382"/>
+  <path class="no" d="M40 376 V438 H70"/>
+  <rect class="box" x="70" y="290" width="200" height="48" rx="8"/>
+  <text class="lab" x="170" y="311" text-anchor="middle">a friend's studio</text>
+  <text class="sub" x="170" y="328" text-anchor="middle">https webhook</text>
+  <rect class="box" x="70" y="352" width="200" height="48" rx="8"/>
+  <text class="lab" x="170" y="373" text-anchor="middle">a radio show</text>
+  <text class="sub" x="170" y="390" text-anchor="middle">https webhook</text>
+  <rect class="box" x="70" y="414" width="200" height="48" rx="8" style="stroke-dasharray:4 4"/>
+  <text class="lab" x="170" y="435" text-anchor="middle">a private address</text>
+  <text class="sub" x="170" y="452" text-anchor="middle">refused</text>
+</svg>
+<figcaption>The publisher never calls anyone. If the hub is down, the melody is still published and the fact waits in the ledger.</figcaption>
+</figure>
+<div class="grid">
+  <div class="card"><h3>What a subscriber gets</h3>
+    <ul><li>An id and a secret, shown once</li><li>Each fact once, as a signed POST</li>
+    <li>Five more tries over about nine hours if their side was down</li><li>A test delivery on request</li></ul></div>
+  <div class="card"><h3>What the hub refuses unless told otherwise</h3>
+    <ul><li>Subscribing without an invite code</li><li>A webhook that is not https</li>
+    <li>A webhook that leads into a private network</li><li>Following a redirect</li></ul></div>
+  <div class="card"><h3>What a fact never carries</h3>
+    <ul><li>The ABC source of the melody</li><li>The session note, unless the owner allowed it</li>
+    <li>Anything about the house that published it</li></ul></div>
+</div>
+<p class="small dim">An invite code opens one subscription, expires after seven days, and is kept as a hash, so the
+file that stores invitations holds nothing a person could reuse.</p>
+
+<h2>For an agent</h2>
+<p>The same commands are offered through the Model Context Protocol, and as a Claude plugin with a skill that
+carries the order of work: write, render, check the chords against what sounds, and publish only when asked.</p>
+<div class="scroll"><table>
+<thead><tr><th>Tool</th><th>What it does</th><th>Changes a public page</th></tr></thead>
+<tbody>
+<tr><td><code>jamai_render</code></td><td>ABC to MIDI, WAV, MP3 and a score, in a work folder</td><td>no</td></tr>
+<tr><td><code>jamai_chords</code></td><td>The chord sounding on each beat of a MIDI file</td><td>no</td></tr>
+<tr><td><code>jamai_midi_notes</code></td><td>Every note of a MIDI file</td><td>no</td></tr>
+<tr><td><code>jamai_tab</code></td><td>Guitar tablature from one voice</td><td>no</td></tr>
+<tr><td><code>jamai_list_melodies</code>, <code>jamai_events</code></td><td>What is published, what was announced</td><td>no</td></tr>
+<tr><td><code>jamai_doctor</code>, <code>jamai_config</code></td><td>The state of the install</td><td>no</td></tr>
+<tr><td><code>jamai_publish_melody</code></td><td>Publishes and announces</td><td><b>yes</b></td></tr>
+</tbody></table></div>
+
+<h2>How it was made that evening</h2>
+<div class="grid">
+  <div class="card"><span class="tag ask">asked</span><h3>Fourteen sessions</h3>
+    <p>Each running session that had touched music, publishing or packaging received one question: what do you know
+    about JamAI, and what would a stranger need? Ten answered in writing. Four were cut off by a usage limit and
+    have not been asked again.</p></div>
+  <div class="card"><span class="tag ask">read</span><h3>The record of one piece</h3>
+    <p>An earlier session had written down every command, version and decision behind op-021 Sens partagé. That
+    inventory is where the list of programs and the "same MIDI, no announcement" rule come from.</p></div>
+  <div class="card"><span class="tag done">caught</span><h3>A defect, by the self-test</h3>
+    <p>The first run failed 3 checks of 68. The hub compared two timestamps that only count seconds, so a fact
+    from just before a subscription was delivered. The hub now counts by position in the ledger. The run after
+    the fix passed 69 of 69, with one check added for that case.</p></div>
+  <div class="card"><span class="tag done">aligned</span><h3>With the access survey</h3>
+    <p>A separate survey of the site proposed one sign-in for everything, with one-use invitations stored as
+    hashes. The hub's invite codes follow that rule, and the hub keeps no list of people of its own.</p></div>
+</div>
+
+<h2>What exists, and what does not yet</h2>
+<div class="grid">
+  <div class="card"><span class="tag done">built and tested</span>
+    <ul><li>The settings file and its loader</li><li>The installer, with check, dry-run and uninstall</li>
+    <li>Publishing with no house address built in</li><li>The hub and signed delivery</li>
+    <li>The MCP server and the Claude plugin files</li></ul></div>
+  <div class="card"><span class="tag next">not done</span>
+    <ul><li>The repository is not public, so only its owner can install it</li>
+    <li>Jerry's own site still publishes with the old command</li><li>The hub is not running on the public site</li>
+    <li>The self-test has run on one machine only</li><li>The plugin has not been installed from the marketplace</li></ul></div>
+  <div class="card"><span class="tag next">next</span>
+    <ul><li>Open a legacy ABC session in MuseScore and publish it</li><li>Sign in once on the site</li>
+    <li>Bring in the drop watcher, the clip tools and the speaker bridge</li><li>Fix five defects the sessions reported</li>
+    <li>Choose a licence</li></ul></div>
+</div>
+
+<footer>
+  <p>jamai-core 0.2.0 · written 16 November 2026 · G.Music Assembly · <a href="../">the melody page</a></p>
+</footer>
+</div>
+</body>
+</html>
