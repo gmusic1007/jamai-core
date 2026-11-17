@@ -39,7 +39,8 @@ package that brings it, and what stops working without it.
 | "a video of the score" | `jamai-scroll.py` (scrolls left to right, red playhead) or `jamai-score-video.py` (one system at a time) |
 | "what did we write before?" | `jamai-legacy list <folder>` |
 | "open it in MuseScore" | `jamai-musescore file.abc` (`--no-open` to convert only) |
-| "change it in MuseScore while I watch", "forte on that note" | `musescore_live_status`, then `musescore_live` (or `jamai-musescore --live <action>`) |
+| "a PDF / an MP3 / MusicXML of it", "transpose it", "a video of the score" | `musescore_export`, `musescore_video` (`jamai-musescore --export`, `--video`) |
+| "change it in MuseScore while I watch", "forte on that note", "a trill here", "chord symbol Am7" | `musescore_live_status`, then `musescore_live` (or `jamai-musescore --live <action>`) |
 | "publish it" | `jamai-publish-melody` |
 | "who receives my music?" | `jamai-hub subscriptions` |
 
@@ -50,6 +51,12 @@ they watch. Check first with `musescore_live_status`; if it is not listening, te
 clicks it names, do not guess. Read with `musescore_get_score` before writing. Move with `goToMeasure`,
 then `addNote` / `addRest`, which advance the cursor. Every change can be reversed with `undo`, and the
 person can press Ctrl+Z. Change only what was asked.
+
+Markings go on the element at the cursor: move first, then `addElement` with its `kind` (articulation,
+ornament, fermata, breath, staffText, expression, chordSymbol, fingering, tempo, keySignature,
+layoutBreak, arpeggio, hairpin, ottava) or `addDynamic`. Read the reply's `attachedHere`: it is what
+MuseScore holds there now. What the plugin cannot do (clefs, slurs, repeats, settings) is listed in
+musescore/CAPABILITIES.md; say so to the person rather than trying.
 
 ## Publishing and subscribers
 

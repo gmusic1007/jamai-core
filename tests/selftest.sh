@@ -26,6 +26,8 @@ trap cleanup EXIT
 # Nothing of the caller's settings may leak into the test.
 for v in $(env | sed -n 's/^\(JAMAI_[A-Z0-9_]*\|GMUSIC_[A-Z0-9_]*\)=.*/\1/p'); do unset "$v"; done
 export JAMAI_CONFIG_DIR="$T/config"
+# MuseScore keeps its logs and settings under these: give it the throwaway folder too.
+export XDG_DATA_HOME="$T/xdg/data" XDG_CONFIG_HOME="$T/xdg/config" XDG_CACHE_HOME="$T/xdg/cache"
 export JAMAI_MUSESCORE_PLUGINS_DIR="$T/msplugins"
 export JAMAI_MUSESCORE_LIVE_PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
 export JAMAI_BIN="$T/bin"
@@ -188,6 +190,15 @@ else
   skip "jamai-musescore: MuseScore is not installed on this machine (3 checks)"
   check "without MuseScore it says so and exits 3" bash -c "jamai-musescore --no-open '$T/legacy/2025/251017_old_session.abc' 2>&1 | grep -q 'MuseScore is not installed'; test \${PIPESTATUS[0]} -eq 3"
 fi
+if [ -n "$ms_bin" ]; then
+  jamai-musescore --export pdf,mid,musicxml,mp3 --transpose-semitones 2 --out "$T/export" "$ROOT/examples/first-light.abc" > "$T/export.out" 2>&1
+  check "--export writes pdf, mid, musicxml and mp3 through MuseScore" bash -c "for f in pdf mid musicxml mp3; do test -s '$T/export/first-light.'\$f || exit 1; done"
+  check "--transpose-semitones 2 moves D major to E major" grep -q '<fifths>4</fifths>' "$T/export/first-light.musicxml"
+  check "a format MuseScore cannot write is refused by name" bash -c "! jamai-musescore --export brf '$ROOT/examples/first-light.abc' 2>&1 | grep -q 'brf is not a format' && false || true; jamai-musescore --export brf '$ROOT/examples/first-light.abc' 2>&1 | grep -q 'brf is not a format'"
+  check "--meta answers JSON with the measure count" bash -c "jamai-musescore --meta --out '$T/meta' '$ROOT/examples/first-light.abc' | jq -e '.metadata.measures == 16'"
+else
+  skip "--export and --meta: MuseScore is not installed on this machine (4 checks)"
+fi
 jamai-publish-melody "$T/legacy/2025/251017_old_session.abc" > "$T/publish-legacy.log" 2>&1
 check "the legacy session publishes" grep -q 'https://music.example.org/melody/old-session-theme.mp3' "$T/publish-legacy.log"
 check "and is announced as a new melody" test "$(tail -n1 "$T/state/events/ledger.jsonl" | jq -r '.type + " " + .slug')" = "melody.published old-session-theme"
@@ -262,7 +273,7 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"addDynamic","params":{"dynamic":"f"}}}}' \
   | jamai-mcp > "$T/mcp.out" 2> "$T/mcp.err"
 check "mcp answers initialize" bash -c "sed -n 1p '$T/mcp.out' | jq -e '.result.serverInfo.name == \"jamai-core\"'"
-check "mcp lists 14 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 14'"
+check "mcp lists 16 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 16'"
 check "mcp lists the melodies" bash -c "sed -n 3p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"second-light\"))'"
 check "mcp names chords from a MIDI file" bash -c "sed -n 4p '$T/mcp.out' | jq -e '.result.isError == false'"
 check "mcp refuses an unknown tool" bash -c "sed -n 5p '$T/mcp.out' | jq -e '.error.code == -32601'"

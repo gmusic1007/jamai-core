@@ -5,6 +5,16 @@
 #   jamai-musescore --no-open --out DIR <file.abc>      convert only, open nothing
 #   jamai-musescore --install-plugin                    put the live-control plugin in MuseScore's plugins folder
 #   jamai-musescore --live <action> ['<json params>']   send one command to the score open in MuseScore
+#   jamai-musescore --export pdf,mp3,musicxml [--parts] [--transpose-semitones N] [--out DIR] <file>
+#   jamai-musescore --video [--resolution 1080p] [--fps 24] [--out DIR] <file>
+#   jamai-musescore --meta <file>                      the score's metadata, as JSON
+#
+# --export, --video and --meta run MuseScore's own converter, with no window. The file may be
+# .abc, .mid, .musicxml, .mxl, .mscz or .mscx. Formats: mscz mscx pdf png svg mid musicxml mxl
+# mei mp3 flac ogg wav aac. --parts adds every part after the full score, in a PDF.
+# --transpose-semitones moves the score by that many half steps, key signatures and chord
+# symbols included, before exporting (negative goes down). Audio is rendered with the sounds
+# this MuseScore has, Muse Sounds included.
 #
 # Live control: once the plugin runs in MuseScore (Plugins menu → musescore-mcp-websocket), each command
 # changes the open score as you watch. `--live ping` answers "pong" when it is listening. The
@@ -54,6 +64,78 @@ case "${1:-}" in
     fi
     printf 'next\tin MuseScore, once: Home → Plugins, enable "musescore-mcp-websocket". Each session: open a score, then start it from the Plugins menu.\n'
     exit 0 ;;
+  --export|--video|--meta)
+    mode="$1"; shift
+    formats=""; parts=0; semis=0; xout=""; res="1080p"; fps="24"; src=""
+    [[ "$mode" == "--export" ]] && { formats="${1:-}"; shift || true; }
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --parts) parts=1; shift ;;
+        --transpose-semitones) semis="$2"; shift 2 ;;
+        --out) xout="$2"; shift 2 ;;
+        --resolution) res="$2"; shift 2 ;;
+        --fps) fps="$2"; shift 2 ;;
+        *) src="$1"; shift ;;
+      esac
+    done
+    [[ -n "$src" && -r "$src" ]] || { echo "usage: jamai-musescore $mode ... <file>" >&2; exit 2; }
+    msbin="${JAMAI_MUSESCORE_BIN:-}"
+    if [[ -z "$msbin" ]]; then
+      for candidate in musescore4 mscore4 mscore musescore musescore3 mscore3; do
+        command -v "$candidate" >/dev/null 2>&1 && { msbin="$candidate"; break; }
+      done
+    fi
+    [[ -n "$msbin" ]] && command -v "$msbin" >/dev/null 2>&1 \
+      || { echo "jamai-musescore: MuseScore is not installed, or JAMAI_MUSESCORE_BIN does not name it" >&2; exit 3; }
+    base="$(basename "$src")"; name="${base%.*}"; ext="$(printf '%s' "${base##*.}" | tr '[:upper:]' '[:lower:]')"
+    [[ -n "$xout" ]] || xout="$STATE_DIR/musescore/$name-export"
+    mkdir -p "$xout"
+    # ABC goes through the same MIDI road as opening it.
+    if [[ "$ext" == "abc" ]]; then
+      "$0" --no-open --out "$xout/.from-abc" "$src" > /dev/null || exit 4
+      src="$xout/.from-abc/$name.musicxml"
+    fi
+    convert() {   # convert <output file> [extra MuseScore options…]
+      local target="$1"; shift
+      QT_QPA_PLATFORM=offscreen timeout 600 "$msbin" "$@" -o "$target" "$src" > "$xout/musescore.log" 2>&1
+    }
+    transpose_opts=()
+    if [[ "$semis" != "0" ]]; then
+      [[ "$semis" =~ ^-?[0-9]+$ ]] && (( semis >= -12 && semis <= 12 )) \
+        || { echo "jamai-musescore: --transpose-semitones takes a whole number from -12 to 12" >&2; exit 2; }
+      # MuseScore counts intervals in its own list (4 = major second); one per number of half steps.
+      ivals=(0 3 4 7 8 11 12 14 17 18 21 22 25)
+      dir="up"; n="$semis"; (( n < 0 )) && { dir="down"; n=$(( -n )); }
+      transpose_opts=(--transpose "{\"mode\":\"by_interval\",\"direction\":\"$dir\",\"targetKey\":0,\"transposeInterval\":${ivals[$n]},\"transposeKeySignatures\":true,\"transposeChordNames\":true,\"useDoubleSharpsFlats\":false}")
+    fi
+    case "$mode" in
+      --meta)
+        convert "$xout/$name.meta.json" --score-meta || { tail -5 "$xout/musescore.log" >&2; exit 4; }
+        cat "$xout/$name.meta.json"; exit 0 ;;
+      --video)
+        convert "$xout/$name.mp4" --score-video --resolution "$res" --fps "$fps" "${transpose_opts[@]}" \
+          && [[ -s "$xout/$name.mp4" ]] || { echo "jamai-musescore: MuseScore made no video. Last lines of its log:" >&2; tail -5 "$xout/musescore.log" >&2; exit 4; }
+        printf 'mp4\t%s\n' "$xout/$name.mp4"; exit 0 ;;
+    esac
+    [[ -n "$formats" ]] || { echo "jamai-musescore: name the formats, e.g. --export pdf,mp3" >&2; exit 2; }
+    failed=0
+    for fmt in ${formats//,/ }; do
+      fmt="$(printf '%s' "$fmt" | tr '[:upper:]' '[:lower:]')"; [[ "$fmt" == "midi" ]] && fmt="mid"
+      case "$fmt" in
+        mscz|mscx|pdf|png|svg|mid|musicxml|mxl|mei|mp3|flac|ogg|wav|aac) ;;
+        *) echo "jamai-musescore: $fmt is not a format MuseScore exports here (mscz mscx pdf png svg mid musicxml mxl mei mp3 flac ogg wav aac)" >&2; failed=1; continue ;;
+      esac
+      extra=("${transpose_opts[@]}")
+      [[ "$fmt" == "pdf" && "$parts" -eq 1 ]] && extra+=(-P)
+      [[ "$fmt" == "png" ]] && extra+=(-r 200)
+      rm -f "$xout/$name.$fmt" "$xout/$name"-[0-9]*."$fmt"
+      if convert "$xout/$name.$fmt" "${extra[@]}" && compgen -G "$xout/$name*.$fmt" > /dev/null; then
+        for f in "$xout/$name.$fmt" "$xout/$name"-[0-9]*."$fmt"; do [[ -e "$f" ]] && printf '%s\t%s\n' "$fmt" "$f"; done
+      else
+        echo "jamai-musescore: MuseScore could not write $fmt. Last line of its log: $(tail -n1 "$xout/musescore.log")" >&2; failed=1
+      fi
+    done
+    exit "$failed" ;;
   --live)
     shift
     [[ $# -ge 1 ]] || { echo "usage: jamai-musescore --live <action> ['<json params>']   (actions: musescore/README.md)" >&2; exit 2; }

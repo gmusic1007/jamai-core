@@ -37,10 +37,198 @@ MuseScore {
         }
     }
 
+    // ========================================
+    // jamai-core: MARKINGS, TEXT, SCORES (from the MuseScore Studio 4 handbook)
+    // ========================================
+
+    property var jamaiNames: ({
+        articulation: {
+            "staccato": "articStaccatoAbove", "staccatissimo": "articStaccatissimoAbove",
+            "tenuto": "articTenutoAbove", "accent": "articAccentAbove", "marcato": "articMarcatoAbove",
+            "portato": "articTenutoStaccatoAbove", "accent-staccato": "articAccentStaccatoAbove",
+            "marcato-staccato": "articMarcatoStaccatoAbove", "stress": "articStressAbove",
+            "unstress": "articUnstressAbove", "soft-accent": "articSoftAccentAbove",
+            "up-bow": "stringsUpBow", "down-bow": "stringsDownBow", "harmonic": "stringsHarmonic",
+            "snap-pizzicato": "pluckedSnapPizzicatoAbove", "left-hand-pizzicato": "pluckedLeftHandPizzicato",
+            "open": "brassMuteOpen", "stopped": "brassMuteClosed"
+        },
+        ornament: {
+            "trill": "ornamentTrill", "turn": "ornamentTurn", "inverted-turn": "ornamentTurnInverted",
+            "turn-slash": "ornamentTurnSlash", "mordent": "ornamentMordent", "short-trill": "ornamentShortTrill",
+            "tremblement": "ornamentTremblement", "haydn": "ornamentHaydn"
+        },
+        fermata: {
+            "fermata": "fermataAbove", "short": "fermataShortAbove", "long": "fermataLongAbove",
+            "very-short": "fermataVeryShortAbove", "very-long": "fermataVeryLongAbove"
+        },
+        breath: {
+            "breath": "breathMarkComma", "tick": "breathMarkTick", "salzedo": "breathMarkSalzedo",
+            "caesura": "caesura", "short-caesura": "caesuraShort"
+        }
+    })
+
+    function jamaiAttached(cursor) {
+        var found = [];
+        try {
+            var anns = cursor.segment.annotations;
+            for (var i = 0; i < anns.length; i++) {
+                if (anns[i].track === cursor.track) found.push({ name: anns[i].name, text: anns[i].text });
+            }
+        } catch (e) {}
+        try {
+            var el = cursor.element;
+            if (el && el.articulations) {
+                for (var j = 0; j < el.articulations.length; j++) found.push({ name: el.articulations[j].name, symbol: String(el.articulations[j].symbol) });
+            }
+            if (el && el.notes) {
+                for (var k = 0; k < el.notes.length; k++) {
+                    var subs = el.notes[k].elements || [];
+                    for (var m = 0; m < subs.length; m++) found.push({ name: subs[m].name, text: subs[m].text, note: k });
+                }
+            }
+        } catch (e2) {}
+        return found;
+    }
+
+    // One marking on the element at the cursor. params.kind says which, see the table in musescore/README.md.
+    function addElement(params) {
+        var validation = validateParams(params, ["kind"]);
+        if (!validation.valid) return validation;
+        var kind = String(params.kind);
+        var name = params.name !== undefined ? String(params.name) : "";
+
+        return executeWithUndo(function() {
+            syncStateToSelection();
+            var cursor = createCursor();
+            var target = cursor.element;
+            if (!target) throw new Error("No element at the cursor");
+            var el;
+            var symbolKinds = { articulation: Element.ARTICULATION, ornament: Element.ORNAMENT,
+                                fermata: Element.FERMATA, breath: Element.BREATH };
+            var textKinds = { staffText: Element.STAFF_TEXT, systemText: Element.SYSTEM_TEXT,
+                              expression: Element.EXPRESSION, rehearsalMark: Element.REHEARSAL_MARK,
+                              chordSymbol: Element.HARMONY };
+
+            if (symbolKinds[kind] !== undefined) {
+                if (!name && (kind === "fermata" || kind === "breath")) name = kind;
+                var table = jamaiNames[kind];
+                if (!table[name]) throw new Error(kind + " name must be one of: " + Object.keys(table).join(", "));
+                if ((kind === "articulation" || kind === "ornament") && target.type !== Element.CHORD)
+                    throw new Error("an " + kind + " goes on a note, and the cursor is on a " + target.name);
+                el = newElement(symbolKinds[kind]);
+                el.symbol = table[name];
+                cursor.add(el);
+            } else if (textKinds[kind] !== undefined) {
+                if (!params.text) throw new Error(kind + " needs text");
+                el = newElement(textKinds[kind]);
+                el.text = String(params.text);
+                cursor.add(el);
+            } else if (kind === "fingering") {
+                if (!params.text) throw new Error("fingering needs text, such as 3");
+                if (target.type !== Element.CHORD) throw new Error("fingering goes on a note, and the cursor is on a " + target.name);
+                var which = params.note !== undefined ? Number(params.note) : 0;
+                el = newElement(Element.FINGERING);
+                el.text = String(params.text);
+                target.notes[which].add(el);
+            } else if (kind === "tempo") {
+                var bpm = Number(params.bpm);
+                if (!(bpm > 0)) throw new Error("tempo needs bpm");
+                el = newElement(Element.TEMPO_TEXT);
+                el.text = params.text ? String(params.text) : "<sym>metNoteQuarterUp</sym> = " + bpm;
+                el.tempo = bpm / 60;
+                el.tempoFollowText = false;
+                cursor.add(el);
+            } else if (kind === "keySignature") {
+                var fifths = Number(params.fifths);
+                if (!(fifths >= -7 && fifths <= 7)) throw new Error("keySignature needs fifths, from -7 (7 flats) to 7 (7 sharps)");
+                el = newElement(Element.KEYSIG);
+                el.concertKey = fifths;
+                el.actualKey = fifths;
+                cursor.add(el);
+            } else if (kind === "layoutBreak") {
+                var breaks = { "line": LayoutBreak.LINE, "page": LayoutBreak.PAGE, "section": LayoutBreak.SECTION };
+                if (breaks[name || "line"] === undefined) throw new Error("layoutBreak name must be line, page or section");
+                el = newElement(Element.LAYOUT_BREAK);
+                el.layoutBreakType = breaks[name || "line"];
+                cursor.add(el);
+            } else if (kind === "arpeggio") {
+                if (target.type !== Element.CHORD) throw new Error("an arpeggio goes on a chord");
+                el = newElement(Element.ARPEGGIO);
+                cursor.add(el);
+            } else if (kind === "hairpin" || kind === "ottava") {
+                el = newElement(kind === "hairpin" ? Element.HAIRPIN : Element.OTTAVA);
+                if (kind === "hairpin") {
+                    var hp = { "crescendo": 0, "decrescendo": 1, "cresc-line": 2, "dim-line": 3 };
+                    if (hp[name || "crescendo"] === undefined) throw new Error("hairpin name must be crescendo, decrescendo, cresc-line or dim-line");
+                    el.hairpinType = hp[name || "crescendo"];
+                } else {
+                    var ov = { "8va": 0, "8vb": 1, "15ma": 2, "15mb": 3, "22ma": 4, "22mb": 5 };
+                    if (ov[name || "8va"] === undefined) throw new Error("ottava name must be 8va, 8vb, 15ma, 15mb, 22ma or 22mb");
+                    el.ottavaType = ov[name || "8va"];
+                }
+                cursor.add(el);
+                var beats = params.beats !== undefined ? Number(params.beats) : 4;
+                try { el.spannerTicks = fraction(beats, 4); } catch (e3) {}
+            } else {
+                throw new Error("kind must be one of: articulation, ornament, fermata, breath, staffText, systemText, expression, rehearsalMark, chordSymbol, fingering, tempo, keySignature, layoutBreak, arpeggio, hairpin, ottava");
+            }
+            return { success: true, kind: kind, name: name, tick: cursor.tick, staff: cursor.staffIdx,
+                     attachedHere: jamaiAttached(cursor) };
+        });
+    }
+
+    // Title, subtitle, composer, lyricist or part name at the top of the score.
+    function setScoreText(params) {
+        var validation = validateParams(params, ["field", "text"]);
+        if (!validation.valid) return validation;
+        var fields = ["title", "subtitle", "composer", "lyricist", "part"];
+        if (fields.indexOf(String(params.field)) < 0) return { error: "field must be one of: " + fields.join(", ") };
+        return executeWithUndo(function() {
+            curScore.addText(String(params.field), String(params.text));
+            return { success: true, field: params.field, text: params.text };
+        });
+    }
+
+    // A new score, which becomes the one the other actions change.
+    function newScoreAction(params) {
+        var title = params && params.title ? String(params.title) : "Untitled";
+        var instrument = params && params.instrument ? String(params.instrument) : "piano";
+        var measures = params && params.measures ? Number(params.measures) : 4;
+        var score = newScore(title, instrument, measures);
+        if (!score) return { error: "MuseScore did not create the score (instrument id " + instrument + "?)" };
+        score.startCmd();
+        score.addText("title", title);
+        score.endCmd();
+        return { success: true, title: title, instrument: instrument, measures: score.nmeasures,
+                 note: "the new score opens in its own tab; the other actions change the score in the active tab" };
+    }
+
+    // Open a file (mscz, musicxml, mid…) in MuseScore.
+    function openScoreAction(params) {
+        var validation = validateParams(params, ["path"]);
+        if (!validation.valid) return validation;
+        var score = readScore(String(params.path), false);
+        if (!score) return { error: "MuseScore could not open " + params.path };
+        return { success: true, path: params.path, measures: score.nmeasures };
+    }
+
+    // Save or export the active score. The format follows the extension: mscz, mscx, musicxml, mxl, pdf, png, svg, mid.
+    function saveScoreAction(params) {
+        var validation = validateParams(params, ["path"]);
+        if (!validation.valid) return validation;
+        if (!curScore) return { error: "No score open" };
+        var path = String(params.path);
+        var dot = path.lastIndexOf(".");
+        if (dot < 0) return { error: "the path needs an extension, such as .mscz or .pdf" };
+        var ext = path.substring(dot + 1).toLowerCase();
+        var ok = writeScore(curScore, path.substring(0, dot), ext);
+        return ok ? { success: true, path: path, format: ext } : { error: "MuseScore could not write " + path };
+    }
+
     // jamai-core: the plugin's own version, so a client can tell this copy from an older one.
     function pluginVersion() {
-        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.3.1",
-                 actions: ["addDynamic", "version"] };
+        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.4.0",
+                 actions: ["addDynamic", "addElement", "setScoreText", "newScore", "openScore", "saveScore", "version"] };
     }
 
     // jamai-core: a dynamic marking (f, mf, pp, sfz…) on the element at the cursor.
@@ -130,6 +318,11 @@ MuseScore {
             case "setTempo":                return setTempo(command.params);
             case "addDynamic":              return addDynamic(command.params);
             case "version":                 return pluginVersion();
+            case "addElement":              return addElement(command.params);
+            case "setScoreText":            return setScoreText(command.params);
+            case "newScore":                return newScoreAction(command.params);
+            case "openScore":               return openScoreAction(command.params);
+            case "saveScore":               return saveScoreAction(command.params);
 
             default:
                 throw new Error("Unknown command: " + command.action);
@@ -324,7 +517,7 @@ MuseScore {
             "getCursorInfo", "goToMeasure", "nextElement", "prevElement", "nextStaff", "prevStaff",
             "selectCurrentMeasure", "processSequence", "insertMeasure", "goToFinalMeasure",
             "goToBeginningOfScore", "setTimeSignature", "addLyrics", "addInstrument",    
-            "setStaffMute", "setInstrumentSound", "setTempo", "addDynamic"
+            "setStaffMute", "setInstrumentSound", "setTempo", "addDynamic", "addElement", "setScoreText"
         ];
 
         try {

@@ -111,7 +111,16 @@ jamai-musescore --live ping                 # "pong" when MuseScore is listening
 jamai-musescore --live addNote '{"pitch": 60, "duration": {"numerator": 1, "denominator": 4}}'
 ```
 
-Every action and its parameters: [`musescore/README.md`](musescore/README.md). The plugin comes from
+Every action and its parameters: [`musescore/README.md`](musescore/README.md). Every page of the MuseScore
+handbook, and how jamai-core reaches it: [`musescore/CAPABILITIES.md`](musescore/CAPABILITIES.md).
+
+### With no window: export, video, metadata
+
+```bash
+jamai-musescore --export pdf,mp3,musicxml song.mscz    # mscz mscx pdf png svg mid musicxml mxl mei mp3 flac ogg wav aac
+jamai-musescore --video song.mscz                      # MP4 of the score scrolling, with its audio
+```
+ The plugin comes from
 [mcp-musescore-gmusic](https://github.com/Gerico1007/mcp-musescore-gmusic), MIT.
 
 ## People who want your music: the hub
@@ -163,10 +172,11 @@ claude plugin marketplace add gmusic1007/jamai-core       # or the plugin: tools
 claude plugin install jamai@jamai-core
 ```
 
-`jamai-mcp` offers fourteen tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
+`jamai-mcp` offers sixteen tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
 `jamai_midi_notes`, `jamai_chords`, `jamai_tab`, `jamai_legacy_list`, `jamai_musescore`,
 `jamai_publish_melody`, `jamai_list_melodies`, `jamai_events`, and for the score open in MuseScore,
-`musescore_live_status`, `musescore_get_score` and `musescore_live`. Only `jamai_publish_melody`
+`musescore_live_status`, `musescore_get_score`, `musescore_live`, `musescore_export` and
+`musescore_video`. Only `jamai_publish_melody`
 changes a published page, only `jamai_musescore` with `open: true` opens a window, and only
 `musescore_live` changes the open score. The plugin adds the
 [`jamai` skill](claude/jamai/skills/jamai/SKILL.md): the order of work, and the traps that each

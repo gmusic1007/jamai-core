@@ -134,7 +134,8 @@ LIVE_ACTIONS = ["ping", "getScore", "getCursorInfo", "undo", "goToBeginningOfSco
                 "goToMeasure", "nextElement", "prevElement", "nextStaff", "prevStaff", "selectCurrentMeasure",
                 "selectCustomRange", "syncStateToSelection", "addNote", "addRest", "addTuplet", "addLyrics",
                 "appendMeasure", "insertMeasure", "deleteSelection", "setTimeSignature", "setTempo",
-                "addInstrument", "setStaffMute", "setInstrumentSound", "processSequence", "addDynamic", "version"]
+                "addInstrument", "setStaffMute", "setInstrumentSound", "processSequence", "addDynamic", "version",
+                "addElement", "setScoreText", "newScore", "openScore", "saveScore"]
 _LIVE = {"client": None}
 
 
@@ -184,6 +185,25 @@ def t_live(a):
     if not isinstance(params, dict):
         return "params must be an object", True
     return live_text(action, params)
+
+
+def t_export(a):
+    args = [tool("render/jamai-musescore"), "--export", ",".join(a.get("formats") or ["pdf"])]
+    if a.get("parts"):
+        args.append("--parts")
+    if a.get("transpose_semitones"):
+        args += ["--transpose-semitones", str(int(a["transpose_semitones"]))]
+    if a.get("out"):
+        args += ["--out", str(a["out"])]
+    return run(args + [str(a["path"])], timeout=900)
+
+
+def t_video(a):
+    args = [tool("render/jamai-musescore"), "--video", "--resolution", str(a.get("resolution", "1080p")),
+            "--fps", str(int(a.get("fps", 24)))]
+    if a.get("out"):
+        args += ["--out", str(a["out"])]
+    return run(args + [str(a["path"])], timeout=900)
 
 
 def schema(properties, required=()):
@@ -236,13 +256,31 @@ TOOLS = [
      "advanceCursorAfterAction}; addRest {duration, advanceCursorAfterAction}; addTuplet {duration, ratio, "
      "advanceCursorAfterAction}; addLyrics {lyrics: [syllables], verse}; goToMeasure {measure}; appendMeasure {count}; "
      "selectCustomRange {startTick, endTick, startStaff, endStaff}; setTimeSignature {numerator, denominator}; "
-     "setTempo {bpm}; addDynamic {dynamic: pppp…ffff, mp, mf, fp, sf, sfz, sff, sffz, sfp, sfpp, rf, rfz, fz} on the element at the cursor; addInstrument {instrumentId}; setStaffMute {staff, mute}; setInstrumentSound {staff, "
+     "setTempo {bpm}; addDynamic {dynamic: pppp…ffff, mp, mf, fp, sf, sfz, sff, sffz, sfp, sfpp, rf, rfz, fz} on the element at the cursor; "
+     "addElement {kind, name?, text?, …} on the element at the cursor: kind articulation (name staccato, staccatissimo, "
+     "tenuto, accent, marcato, portato, accent-staccato, marcato-staccato, stress, unstress, soft-accent, up-bow, down-bow, "
+     "harmonic, snap-pizzicato, left-hand-pizzicato, open, stopped), ornament (trill, turn, inverted-turn, turn-slash, "
+     "mordent, short-trill, tremblement, haydn), fermata (fermata, short, long, very-short, very-long), breath (breath, "
+     "tick, salzedo, caesura, short-caesura), staffText/systemText/expression/rehearsalMark/chordSymbol {text}, "
+     "fingering {text, note?}, tempo {bpm, text?}, keySignature {fifths -7..7}, layoutBreak (line, page, section), "
+     "arpeggio, hairpin (crescendo, decrescendo, cresc-line, dim-line; beats), ottava (8va, 8vb, 15ma, 15mb; beats); "
+     "setScoreText {field: title, subtitle, composer, lyricist, part; text}; newScore {title, instrument, measures}; "
+     "openScore {path}; saveScore {path: .mscz, .musicxml, .pdf, .png, .svg, .mid}; addInstrument {instrumentId}; setStaffMute {staff, mute}; setInstrumentSound {staff, "
      "instrumentId}; processSequence {sequence: [{action, params}, ...]}. No params: version, getCursorInfo, undo, "
      "goToBeginningOfScore, goToFinalMeasure, nextElement, prevElement, nextStaff, prevStaff, selectCurrentMeasure, "
      "insertMeasure, deleteSelection, syncStateToSelection.",
      schema({"action": {"type": "string", "enum": LIVE_ACTIONS},
              "params": {"type": "object", "description": "The action's parameters, as listed above."}},
             ["action"]), t_live),
+    ("musescore_export", "Export a score through MuseScore's own converter, with no window: pdf, png, svg, mid, musicxml, "
+     "mxl, mei, mscz, mscx, mp3, flac, ogg, wav, aac. Takes .abc, .mid, .musicxml, .mxl, .mscz. parts adds every part to a PDF; "
+     "transpose_semitones moves the whole score first, key signatures and chord symbols included.",
+     schema({"path": STR, "formats": {"type": "array", "items": STR},
+             "parts": BOOL, "transpose_semitones": INT, "out": dict(STR, description="Output folder.")},
+            ["path", "formats"]), t_export),
+    ("musescore_video", "Make an MP4 video of the score scrolling with its audio, through MuseScore, with no window.",
+     schema({"path": STR, "resolution": dict(STR, description="720p, 1080p, 1440p or 2160p. Default 1080p."),
+             "fps": dict(INT, description="24, 30 or 60."), "out": STR}, ["path"]), t_video),
     ("jamai_list_melodies", "List the melodies already published: date, slug, key, meter, duration, title.",
      schema({"limit": dict(INT, description="Default 20.")}), t_melodies),
     ("jamai_events", "Show the last facts announced to subscribers (melody.published, melody.revised).",
