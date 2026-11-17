@@ -11,6 +11,8 @@ Every page of the [MuseScore Studio 4 handbook](https://handbook.musescore.org/)
 | **in MuseScore** | done by the person in MuseScore's window: settings, panels, accounts. The plugin interface MuseScore 4.7 offers has no way in |
 | **not yet** | MuseScore's plugin interface allows it and jamai-core does not do it yet |
 
+What was tried live, and what failed, is in [README.md](README.md#tried-in-musescore-477-2026-11-17).
+
 A plugin in MuseScore 4.7 cannot run MenuBar commands: its interface has no `cmd()`, so a feature
 that exists only as a menu item or a panel stays **in MuseScore**.
 
@@ -53,10 +55,10 @@ that exists only as a menu item or a panel stays **in MuseScore**.
 | Clefs | **not yet**: MuseScore 4.7 does not let a plugin create a clef |
 | Key signatures | **live** `addElement {kind: keySignature, fifths}` |
 | Transposition | **export** `--transpose-semitones N` (−12 to 12), key signatures and chord symbols included |
-| Octave lines | **live** `addElement {kind: ottava, name: 8va…, beats}` |
+| Octave lines | **in MuseScore**: added from a plugin, an octave line left nothing in MuseScore 4.7.7, so `addElement ottava` refuses |
 | Noteheads, Ambitus, Respell pitches | **in MuseScore** |
 | Articulations | **live** `addElement {kind: articulation, name}`: staccato, staccatissimo, tenuto, accent, marcato, portato, accent-staccato, marcato-staccato, stress, unstress, soft-accent, up-bow, down-bow, harmonic, snap-pizzicato, left-hand-pizzicato, open, stopped |
-| Dynamics and hairpins | **live** `addDynamic` (pppp to ffff, mp, mf, fp, pf, sf, sfz, sff, sffz, sfp, sfpp, rf, rfz, fz). Hairpins: `addElement {kind: hairpin, name: crescendo, decrescendo, cresc-line, dim-line, beats}` |
+| Dynamics and hairpins | **live** `addDynamic` (pppp to ffff, mp, mf, fp, pf, sf, sfz, sff, sffz, sfp, sfpp, rf, rfz, fz). Hairpins: **in MuseScore** (a crescendo added from a plugin left nothing in MuseScore 4.7.7, so `addElement hairpin` refuses) |
 | Slurs and ties, Laissez vibrer ties | **not yet** |
 | Breaths and pauses | **live** `addElement {kind: breath}` (breath, tick, salzedo, caesura, short-caesura) and `{kind: fermata}` (fermata, short, long, very-short, very-long) |
 | Ornaments | **live** `addElement {kind: ornament, name}`: trill, turn, inverted-turn, turn-slash, mordent, short-trill, tremblement, haydn |
@@ -102,7 +104,7 @@ that exists only as a menu item or a panel stays **in MuseScore**.
 
 | page | how |
 |---|---|
-| Opening and saving scores | **live** `saveScore {path}` (.mscz, .musicxml, .pdf, .png, .svg, .mid). `openScore` opens the file in a new MuseScore window, which the plugin does not reach |
+| Opening and saving scores | **live** `saveScore {path}` (.musicxml, .pdf, .png tried; .svg, .mid). Saving .mscz from a plugin opened an error dialog in MuseScore 4.7.7 and is refused: save it in MuseScore (Ctrl+S). `openScore` opens the file in a new MuseScore window, which the plugin does not reach |
 | Convert a file, File export, Working with MusicXML | **export**: mscz, mscx, pdf, png, svg, mid, musicxml, mxl, mei, mp3, flac, ogg, wav, aac. Braille (brf) fails in MuseScore 4.7.7's converter |
 | Project properties | **export** `--meta` reads them as JSON |
 | Backup and recovered files | **in MuseScore** |

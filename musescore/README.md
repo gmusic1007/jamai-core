@@ -16,6 +16,22 @@ note of a flute part in MuseScore 4.7.7. The plugin now stays on the element it 
 Two actions added here, also marked `jamai-core:`: `addDynamic`, for dynamic markings, and `version`,
 which tells this copy from an older one still running in MuseScore.
 
+## Tried in MuseScore 4.7.7, 2026-11-17
+
+On a blank flute score, each marking on its own note, then saved and read back from the MusicXML
+and the page image.
+
+| result | what |
+|---|---|
+| placed, and in the saved file | staff text, system text, expression text, rehearsal mark; staccato, accent, tenuto, marcato; trill, mordent, turn; fermata; breath; fingering; tempo marking (with its playback speed); arpeggio; key signature; line break; `addDynamic mf`; subtitle and composer; saving .musicxml, .pdf and .png |
+| refused with a message | chord symbol: it crashed MuseScore (segmentation fault) in the first run |
+| refused, nothing was placed | crescendo hairpin, octave line |
+| refused, blocked MuseScore | saving .mscz: an error dialog stayed open until someone clicked Abort |
+| same code as a tried one, name not tried | the other articulation, ornament, fermata and breath names; page and section breaks; the other dynamics |
+
+The composer text was added beside the "Composer / arranger" placeholder of a new score rather than
+in place of it.
+
 ## One window per score
 
 MuseScore 4 runs each score in its own window, and each window is its own program. The plugin
@@ -80,11 +96,11 @@ These run MuseScore's own converter and need no plugin. An agent has them as `mu
 | `setTempo` | `bpm` |
 | `addDynamic` | `dynamic`: `pppp` to `ffff`, `mp`, `mf`, `fp`, `pf`, `sf`, `sfz`, `sff`, `sffz`, `sfp`, `sfpp`, `rf`, `rfz`, `fz`, on the element at the cursor |
 | `version` | none: answers which copy of the plugin is running |
-| `addElement` | `kind` and its fields, on the element at the cursor: articulation, ornament, fermata, breath (`name`); staffText, systemText, expression, rehearsalMark, chordSymbol (`text`); fingering (`text`, `note`); tempo (`bpm`, `text`); keySignature (`fifths`); layoutBreak (`name`: line, page, section); arpeggio; hairpin, ottava (`name`, `beats`). Every name: [CAPABILITIES.md](CAPABILITIES.md) |
+| `addElement` | `kind` and its fields, on the element at the cursor: articulation, ornament, fermata, breath (`name`); staffText, systemText, expression, rehearsalMark (`text`); fingering (`text`, `note`); tempo (`bpm`, `text`); keySignature (`fifths`); layoutBreak (`name`: line, page, section); arpeggio. Refused, with the reason: chordSymbol, hairpin, ottava. Every name: [CAPABILITIES.md](CAPABILITIES.md) |
 | `setScoreText` | `field` (title, subtitle, composer, lyricist, part), `text` |
 | `newScore` | `title`, `instrument` (a MuseScore instrument id such as piano, flute, violin), `measures` |
 | `openScore` | `path` |
-| `saveScore` | `path`: the extension picks the format (.mscz, .mscx, .musicxml, .mxl, .pdf, .png, .svg, .mid) |
+| `saveScore` | `path`: the extension picks the format (.musicxml, .mxl, .pdf, .png, .svg, .mid). .mscz is refused: from a plugin it opened an error dialog that held MuseScore |
 | `addInstrument` | `instrumentId` |
 | `setStaffMute` | `staff`, `mute` |
 | `setInstrumentSound` | `staff`, `instrumentId` |

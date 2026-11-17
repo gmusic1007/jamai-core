@@ -162,6 +162,9 @@ MuseScore {
                 el = newElement(Element.ARPEGGIO);
                 cursor.add(el);
             } else if (kind === "hairpin" || kind === "ottava") {
+                // Seen 2026-11-17 in MuseScore 4.7.7: added from a plugin, a crescendo or an octave line
+                // left nothing in the score. Refuse rather than report a success that did not happen.
+                throw new Error("a " + (kind === "hairpin" ? "crescendo or diminuendo hairpin" : "octave line") + " added by a plugin leaves nothing in MuseScore 4.7.7; add it in MuseScore: select the notes, then the Lines palette");
                 el = newElement(kind === "hairpin" ? Element.HAIRPIN : Element.OTTAVA);
                 if (kind === "hairpin") {
                     var hp = { "crescendo": 0, "decrescendo": 1, "cresc-line": 2, "dim-line": 3 };
@@ -229,13 +232,17 @@ MuseScore {
         var dot = path.lastIndexOf(".");
         if (dot < 0) return { error: "the path needs an extension, such as .mscz or .pdf" };
         var ext = path.substring(dot + 1).toLowerCase();
+        // Seen 2026-11-17 in MuseScore 4.7.7: writing .mscz from a plugin opened an error dialog that held
+        // MuseScore until someone clicked it. MusicXML, PDF and PNG were written.
+        if (ext === "mscz" || ext === "mscx")
+            return { error: "saving ." + ext + " from a plugin opens an error dialog in MuseScore 4.7.7; save it in MuseScore (Ctrl+S), or save .musicxml, .pdf or .png from here" };
         var ok = writeScore(curScore, path.substring(0, dot), ext);
         return ok ? { success: true, path: path, format: ext } : { error: "MuseScore could not write " + path };
     }
 
     // jamai-core: the plugin's own version, so a client can tell this copy from an older one.
     function pluginVersion() {
-        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.4.1",
+        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.4.2",
                  actions: ["addDynamic", "addElement", "setScoreText", "newScore", "openScore", "saveScore", "version"] };
     }
 
