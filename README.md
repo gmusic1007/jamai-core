@@ -1,140 +1,172 @@
 # jamai-core 🎸
 
-L'atelier de composition de JamAI — les outils qui **écoutent**, **rendent** et
-**rangent** la musique de Jerry ⚡.
+JamAI's composition workshop: tools that **listen** to what was played, **render** it so it can
+be heard and read, **publish** it on a page of your own, and **tell the people who subscribed**.
 
-Ce dépôt ne décrit pas ce qu'on aimerait construire. Il contient ce qui tourne
-déjà : 9 scripts, 1 413 lignes de Python, écrits entre le 3 et le 14 août 2026
-pendant des séances de composition réelles. Chacun est né d'un moment où
-quelque chose manquait.
+Everything here was written during real composition sessions, each tool at the moment something
+was missing. Version 0.2.0 makes the set installable by someone who is not in the house where it
+was born: one command, and it asks for every setting it needs.
 
----
-
-## Les coutures
-
-Ce ne sont pas des dossiers choisis d'avance — c'est la forme que le code avait
-déjà quand on l'a regardé.
-
-### `listen/` — comprendre ce qui a été joué
-
-| script | ce qu'il fait |
-|---|---|
-| `jamai-midi.py` | MIDI → ABC, note à note. Écrit parce que `mido` n'est pas sur la machine. |
-| `jamai-chords.py` | Nomme l'accord qui sonne à chaque temps d'un fichier MIDI. |
-| `jamai-chords-audio.py` | Accords et tonalité depuis un **enregistrement**, pas un MIDI. |
-| `jamai-measure.py` | Mesure d'un enregistrement : structure, tempo, hauteurs, timbre. |
-
-### `render/` — donner à voir et à entendre
-
-| script | ce qu'il fait |
-|---|---|
-| `jamai-tab.py` | Tablature guitare à six lignes, depuis un fichier ABC. |
-| `jamai-score-video.py` | Vidéo de partition qui suit la musique, système par système. |
-| `jamai-scroll.py` | Vidéo qui **défile de gauche à droite**, tête de lecture rouge. |
-
-### `workshop/` — savoir où on en est
-
-| script | ce qu'il fait |
-|---|---|
-| `jamai-unread.py` | Les dépôts de l'atelier sur lesquels personne n'a encore travaillé. |
-| `jamai-related.py` | Trouve les unités déjà existantes qui parlent de la même chose. |
-| `jamai-follow-fork` | Suivre une session Claude en direct, en lecture seule, sans la déranger. |
-
-### `broadcast/` — atteindre Jerry quand il n'est pas devant l'écran
-
-C'est la dernière couture, et la plus jeune. Jerry compose dans sa cuisine :
-une réponse qui n'arrive que dans un terminal n'arrive pas.
-
-| script | ce qu'il fait |
-|---|---|
-| `jamai-cast` | Une page HTML sur la télé. Imprime une **preuve** : la ligne du serveur montrant que l'appareil a tiré la page. |
-| `jamai-say` | Une phrase sur l'enceinte (edge-tts, `fr-CA-SylvieNeural`). Preuve : un `Time:` qui avance. |
-
-**Ces deux commandes ne connaissent aucune maison.** Elles refusent de partir
-sans qu'on leur nomme un appareil (`-d`, ou `JAMAI_CAST_DEVICE` /
-`JAMAI_SAY_DEVICE`). Les noms d'appareils, la voix et la géométrie de l'écran
-appartiennent à **`gmusic1007/gmusic-routine`**, qui les fournit :
-`routine cuisine dire "…"`.
-
-Trois pièges payés une fois, et écrits dans les en-têtes des scripts : la télé
-**refuse l'audio seul** (donc télé = image, enceintes = son) ; `catt cast_site`
-se bloque si une app tourne déjà ; `episode say` ne parle pas à voix haute.
-
----
-
-## Ce que ce dépôt n'est pas
-
-Il existe un `Gerico1007/Jamai-core` (mai 2025) : neuf dossiers de modules,
-tous vides, zéro ligne exécutable, dormant depuis juin 2025. C'était une
-architecture dessinée avant qu'une note soit jouée — et aucun de ses neuf
-dossiers ne prévoyait **d'écouter un enregistrement**, qui est aujourd'hui la
-moitié de cet outillage.
-
-Ce dépôt-ci prend le nom et laisse le plan. Le dossier de conception de 2025
-(`nova_archive/` : UML, SpecLang, feuille de route, le thème Genesis avec sa
-tablature) reste du matériau de chronique et mérite d'être préservé ailleurs —
-il n'est pas mort, il n'est simplement pas du code.
-
----
-
-## Installation
+## Install
 
 ```bash
-./install.sh            # lie les 9 outils dans ~/.local/bin
-./install.sh --check    # vérifie sans rien écrire
+git clone https://github.com/gmusic1007/jamai-core.git
+./jamai-core/install.sh
 ```
 
-Ensuite ils s'appellent **par leur nom, sans chemin** :
+The installer does four things, in this order:
+
+1. **Asks the settings** declared in [`settings`](settings): where the commands go, which
+   soundfont, where melodies are published and under which public address, the hub's port,
+   the screen and speaker names. Enter keeps the value shown in brackets.
+2. **Writes them** to `~/.config/jamai/jamai.env` (plain `KEY=VALUE`). The one secret, the hub's
+   admin token, is generated and kept apart in `secrets.env`, mode 600.
+3. **Links the 19 commands** into the folder you chose (default `~/.local/bin`). A file already
+   there is renamed `name.bak-<stamp>`, never deleted.
+4. **Runs `jamai doctor`**, which names each missing program, the package that brings it, and
+   what stops working without it.
+
+| | |
+|---|---|
+| `./install.sh --yes` | no questions: defaults, or values already in the environment |
+| `./install.sh --check` | changes nothing, exits 1 if a command is not linked to this checkout |
+| `./install.sh --dry-run` | says what an install would do |
+| `./install.sh --uninstall` | removes the links, keeps your config |
+
+Piped (`curl -fsSL …/install.sh | bash`), the same script clones the repository into
+`~/.local/share/jamai-core` first and asks its questions on your terminal. That form needs the
+repository to be readable without signing in, which is not the case today.
+
+**System programs** (Debian and Ubuntu names): `abcmidi abcm2ps fluidsynth fluid-soundfont-gm
+lame ffmpeg jq librsvg2-bin imagemagick python3-numpy python3-scipy python3-pil`. Optional, for
+a screen and a speaker: `pipx install catt edge-tts`. Tested on Ubuntu. Other systems are untested.
+
+## A first melody
 
 ```bash
-jamai-midi.py piece.mid
-jamai-chords.py source.mid 4
-jamai-scroll.py partition.png piece.mp3 sortie.mp4 2.0
+jamai-render examples/first-light.abc            # hear it and read it; nothing is published
+jamai-publish-melody examples/first-light.abc    # add it to your melody page
 ```
 
-Une skill ne devrait jamais connaître le chemin d'un dépôt — elle appelle le
-nom. Si ce dépôt déménage, on relance `install.sh` et rien d'autre ne bouge.
+`jamai-publish-melody` renders ABC to MIDI, WAV and MP3, engraves the score, updates
+`melodies.json` and the index page in `JAMAI_MELODY_DIR`, and prints the listen address. With
+`JAMAI_PUBLIC_BASE` empty, that address is a file on your machine: no web host is needed to start.
 
-### `moments/` — la charnière
+## Settings
 
-`routine` fait le lien entre un outil qui ne connaît aucune maison et une
-maison qui a des appareils. Les **moments** eux-mêmes vivent ailleurs (ils
-nomment tes appareils, donc ils sont à toi) : par défaut
-`~/.config/gmusic-routine/moments`.
+Three sources, first match wins: the environment, then `~/.config/jamai/jamai.env`, then the
+default in `settings`.
 
 ```bash
-routine                          les moments déclarés
-routine new                      en écrire un — il scanne avant de demander
-routine kitchen say "…"          la voix, sur l'enceinte de ce moment
-routine kitchen show page.html   l'image, sur l'écran de ce moment
-routine kitchen posture          ce qu'un agent lit avant de répondre
+jamai config show                 # every setting, its value, and where the value comes from
+jamai config set JAMAI_PUBLIC_BASE https://example.org/melody
+jamai setup                       # ask them all again
 ```
 
-## État au 14 août 2026
+Nothing about where you publish is built into a tool. The self-test fails if a house address
+appears in the packaged code.
 
-- **Ce dépôt est la source.** `~/.agents/skills/jamai-morning/scripts/` ne
-  contient plus de copies : les 9 entrées y sont désormais des **liens** vers
-  ce dépôt. Les appelants existants (`atelier-on-drop`, `episodes-on-drop`,
-  `jamai-clip`, qui importe `jamai-score-video.py` comme module) continuent de
-  fonctionner sans être modifiés — vérifié.
-- Deux de ces scripts — `jamai-scroll.py` et `jamai-related.py` — n'étaient
-  suivis par **aucun** dépôt avant ce commit. Ils n'existaient qu'à un seul
-  endroit sur un seul disque.
-- `jamai-tab.py` n'était pas exécutable à l'origine ; il l'est ici.
-- Pas encore de paquet, pas de tests. C'est voulu : on emballe après avoir vu
-  la forme, pas avant.
+## People who want your music: the hub
 
----
+After each publication, `jamai-publish-melody` appends one fact to a ledger and delivers nothing
+itself:
 
-## Autour
+| fact | when |
+|---|---|
+| `melody.published` | the slug is new |
+| `melody.revised` | the slug existed and the music changed (the MIDI differs) |
+| none | the MIDI is byte-identical, so an engraving fix notifies nobody twice |
 
-Ces outils ne vivent pas seuls. À côté d'eux, hors de ce dépôt pour l'instant :
-`jamai-publish-melody` (ABC → MP3 + partition, publié sur
-gmusicassembly.com/jamai/melody/), `jamai-cast` et `jamai-say`
-(l'image sur la télé, la voix sur l'enceinte — l'interface quand Jerry n'est
-pas devant l'écran), `jamai-morning` et `jamai-on-drop`.
+A fact carries the title, the links to the MP3, MIDI and score, key, meter, tempo, duration and
+a digest of the MIDI. It never carries the ABC source. The session note stays on the page unless
+you set `JAMAI_PUBLISH_NOTE_PUBLIC=1`.
 
----
+`jamai-hub serve` runs the service: your melody page, a subscribe page, and a worker that POSTs
+each fact once to every subscriber.
 
-*♠️🌿🎸🧵 G.Music Assembly — Jerry ⚡ direction créative, Nyro structure,
-Aureon mémoire, JamAI son, Synth exécution.*
+```bash
+jamai-hub serve                           # http://127.0.0.1:8642/
+jamai-hub invite "a friend's studio"      # a one-use code to hand to that person
+jamai-hub subscriptions                   # who is subscribed (never the secrets)
+jamai-hub unit > ~/.config/systemd/user/jamai-hub.service   # keep it running
+```
+
+A subscriber gives a webhook address and receives an id and a secret, shown once. Every delivery
+is signed with that secret. On the receiving side:
+
+```python
+import hashlib, hmac
+expected = "sha256=" + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+trusted = hmac.compare_digest(expected, request.headers["X-JamAI-Signature"])
+```
+
+What the hub refuses by default: a subscription without an invite code, a webhook that is not
+https, a webhook that resolves to a private or local address (checked again at each delivery),
+and redirects. A subscription receives what is announced after it, counted by position in the
+ledger. A failed delivery is tried again five times over about nine hours.
+
+The hub has no accounts and no sign-in. A person manages a subscription with its id and secret.
+
+## For an agent: MCP server and Claude plugin
+
+```bash
+claude mcp add jamai -- jamai-mcp                         # the tools, in Claude Code
+claude plugin marketplace add gmusic1007/jamai-core       # or the plugin: tools plus a skill
+claude plugin install jamai@jamai-core
+```
+
+`jamai-mcp` offers nine tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
+`jamai_midi_notes`, `jamai_chords`, `jamai_tab`, `jamai_publish_melody`, `jamai_list_melodies`,
+`jamai_events`. Only `jamai_publish_melody` changes a published page. The plugin adds the
+[`jamai` skill](claude/jamai/skills/jamai/SKILL.md): the order of work, and the traps that each
+cost a session to find. The plugin needs jamai-core installed first, since it calls `jamai-mcp`
+by name.
+
+## The commands
+
+`jamai tools` prints this list.
+
+| folder | command | what it does |
+|---|---|---|
+| `listen/` | `jamai-midi.py` | MIDI to a note-by-note listing and ABC |
+| | `jamai-chords.py` | the chord sounding on each beat of a MIDI file |
+| | `jamai-chords-audio.py` | chords and key from a recording |
+| | `jamai-measure.py` | tempo, structure, pitch and timbre of a recording |
+| | `jamai-grille.py` | measure the bar grid before writing the score |
+| `render/` | `jamai-render` | ABC to MIDI, WAV, MP3 and an engraved score |
+| | `jamai-tab.py` | six-line guitar tablature from ABC |
+| | `jamai-score-video.py` | score video, one system at a time |
+| | `jamai-scroll.py` | score video scrolling left to right under a red playhead |
+| `publish/` | `jamai-publish-melody` | render a melody and add it to the melody page |
+| | `jamai-hub` | the melody page, subscriptions and webhook delivery |
+| `workshop/` | `jamai-unread.py` | recorder drops nobody has worked on yet |
+| | `jamai-related.py` | units that already speak of the same thing |
+| | `jamai-follow-fork` | follow a Claude session read-only |
+| `broadcast/` | `jamai-cast` | an HTML page on a Chromecast screen |
+| | `jamai-say` | a spoken sentence on a Chromecast speaker |
+| `moments/` | `routine` | a named moment of a house: its screen, speaker and posture |
+| `mcp/` | `jamai-mcp` | the tools as an MCP server |
+| `bin/` | `jamai` | setup, config, doctor |
+
+## Proof
+
+```bash
+tests/selftest.sh
+```
+
+It installs into a throwaway folder and checks 69 things: the settings and the links, a render,
+the three publication cases, the hub's invite, signature, single delivery and refusals, byte
+ranges, the MCP server, and that no house address is in the packaged code. It touches none of
+your files and reaches no outside address.
+
+## Where this comes from
+
+The first nine tools were written between 3 and 14 August 2026, during composition sessions with
+Jerry ⚡ of the G.Music Assembly, and gathered here from the places they had grown. An earlier
+`Gerico1007/Jamai-core` (May 2025) held nine empty module folders: an architecture drawn before a
+note was played. This repository took the name and left the plan. It packages only what runs.
+
+Not in the package yet: the drop watcher and transcription (`jamai-on-drop`, `jamai-watch`), the
+footage clip tools, the speaker bridge, and the MuseScore bridge.
+
+*♠️🌿🎸🧵 G.Music Assembly*

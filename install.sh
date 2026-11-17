@@ -1,49 +1,109 @@
 #!/usr/bin/env bash
-# install.sh — rend les 9 outils appelables par leur nom, de partout.
+# install.sh — install jamai-core with one command.
 #
-# POURQUOI DES LIENS ET PAS UNE COPIE : une skill ne devrait jamais connaître
-# le chemin d'un dépôt. Elle appelle `jamai-midi.py`, point. Si ce dépôt
-# déménage demain, on relance ce script et rien d'autre ne bouge.
-# C'est déjà le motif de `jamai-publish-melody` sur cette machine.
+#   ./install.sh               ask the settings, link the commands, check the tools
+#   ./install.sh --yes         the same with no questions: defaults, or values already in the environment
+#   ./install.sh --check       change nothing; exit 1 if a command is not linked to this checkout
+#   ./install.sh --dry-run     change nothing; say what an install would do
+#   ./install.sh --uninstall   remove the links this installer made (your config stays)
 #
-#   ./install.sh            installe dans ~/.local/bin
-#   ./install.sh --check    vérifie sans rien écrire
-#   ./install.sh --uninstall  retire les liens posés par ce script
+# From nothing, once you can read the repository:
+#   git clone https://github.com/gmusic1007/jamai-core.git && ./jamai-core/install.sh
+# Piped (curl -fsSL …/install.sh | bash) it clones into ${JAMAI_CORE_ROOT:-~/.local/share/jamai-core} first.
+#
+# WHY LINKS AND NOT COPIES: a skill or an agent calls `jamai-midi.py` by name and never
+# learns where this checkout lives. Move the checkout, run this again, nothing else changes.
+#
+# Exit codes: 0 done or clean · 1 drift found (--check) · 2 cannot proceed
 set -euo pipefail
 
-RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CIBLE="${JAMAI_BIN:-$HOME/.local/bin}"
-TOOLS=(listen/jamai-midi.py listen/jamai-chords.py listen/jamai-chords-audio.py
-        listen/jamai-measure.py render/jamai-tab.py render/jamai-score-video.py
-        render/jamai-scroll.py workshop/jamai-unread.py workshop/jamai-related.py
-        workshop/jamai-follow-fork
-        broadcast/jamai-cast broadcast/jamai-say
-        moments/routine)
+REPO_URL="${JAMAI_REPO_URL:-https://github.com/gmusic1007/jamai-core.git}"
+SELF="${BASH_SOURCE[0]:-}"
+ROOT=""
+[ -n "$SELF" ] && [ -f "$SELF" ] && ROOT="$(cd "$(dirname "$(readlink -f "$SELF")")" && pwd)"
 
-# La géométrie de la télé n'est pas ici : elle appartient à une maison.
-# Voir gmusic1007/gmusic-routine, qui pose _socle.css et le nom des appareils.
+# Piped install: there is no checkout beside this script yet. Fetch one and hand over.
+if [ -z "$ROOT" ] || [ ! -f "$ROOT/settings" ]; then
+  command -v git >/dev/null || { echo "install.sh: git is needed to fetch jamai-core" >&2; exit 2; }
+  ROOT="${JAMAI_CORE_ROOT:-$HOME/.local/share/jamai-core}"
+  if [ -d "$ROOT/.git" ]; then git -C "$ROOT" pull --ff-only
+  else git clone "$REPO_URL" "$ROOT"; fi
+  exec bash "$ROOT/install.sh" "$@"
+fi
 
-mode="${1:-install}"
-mkdir -p "$CIBLE"
-n=0
-for rel in "${TOOLS[@]}"; do
-  src="$RACINE/$rel"; nom="$(basename "$rel")"; dst="$CIBLE/$nom"
-  case "$mode" in
-    --check)
-      if [ -e "$dst" ] && [ "$(readlink -f "$dst")" = "$(readlink -f "$src")" ]
-        then echo "✓ $nom"; n=$((n+1))
-        else echo "✗ $nom — absent ou pointe ailleurs"; fi ;;
-    --uninstall)
-      if [ -L "$dst" ] && [ "$(readlink -f "$dst")" = "$(readlink -f "$src")" ]
-        then rm "$dst"; echo "retiré : $nom"; n=$((n+1)); fi ;;
-    *)
-      [ -x "$src" ] || chmod +x "$src"
-      ln -sfn "$src" "$dst"; echo "→ $nom"; n=$((n+1)) ;;
+TOOLS=(bin/jamai
+       listen/jamai-midi.py listen/jamai-chords.py listen/jamai-chords-audio.py
+       listen/jamai-measure.py listen/jamai-grille.py
+       render/jamai-render render/jamai-tab.py render/jamai-score-video.py render/jamai-scroll.py
+       publish/jamai-publish-melody publish/jamai-hub
+       workshop/jamai-unread.py workshop/jamai-related.py workshop/jamai-follow-fork
+       broadcast/jamai-cast broadcast/jamai-say
+       moments/routine
+       mcp/jamai-mcp)
+
+mode=install; yes=0
+for arg in "$@"; do
+  case "$arg" in
+    --check) mode=check ;; --dry-run) mode=dry ;; --uninstall) mode=uninstall ;;
+    --yes|-y) yes=1 ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$SELF" | sed -e 's/^# \{0,1\}//' -e '/^set -euo/d'; exit 0 ;;
+    *) echo "install.sh: unknown option $arg" >&2; exit 2 ;;
   esac
 done
 
-echo "$n / ${#TOOLS[@]} — $CIBLE"
-case ":$PATH:" in
-  *":$CIBLE:"*) ;;
-  *) echo "⚠ $CIBLE n'est pas dans le PATH — ajoute-le à ton shell." ;;
+# The settings come first: where the commands are linked is one of them.
+if [ "$mode" = install ]; then
+  if [ "$yes" -eq 1 ]; then "$ROOT/bin/jamai" setup --yes; else "$ROOT/bin/jamai" setup; fi
+fi
+TARGET="$("$ROOT/bin/jamai" config get JAMAI_BIN)"
+STAMP="$(date +%y%m%d%H%M%S)"
+
+linked=0; drift=0
+for rel in "${TOOLS[@]}"; do
+  src="$ROOT/$rel"; name="$(basename "$rel")"; dst="$TARGET/$name"
+  [ -f "$src" ] || { echo "✗ $name — $rel is missing from this checkout"; drift=$((drift + 1)); continue; }
+  current=""; [ -e "$dst" ] || [ -L "$dst" ] && current="$(readlink -f "$dst" 2>/dev/null || true)"
+  same=0; [ -n "$current" ] && [ "$current" = "$(readlink -f "$src")" ] && same=1
+  case "$mode" in
+    check)
+      if [ "$same" -eq 1 ]; then echo "✓ $name"; linked=$((linked + 1))
+      elif [ -n "$current" ]; then echo "✗ $name — points at $current"; drift=$((drift + 1))
+      else echo "✗ $name — not linked"; drift=$((drift + 1)); fi ;;
+    dry)
+      if [ "$same" -eq 1 ]; then echo "= $name — already linked"
+      elif [ -n "$current" ]; then echo "~ $name — would move $dst to $dst.bak-$STAMP, then link"
+      else echo "+ $name — would link"; fi ;;
+    uninstall)
+      if [ -L "$dst" ] && [ "$same" -eq 1 ]; then rm "$dst"; echo "removed: $name"; linked=$((linked + 1)); fi ;;
+    install)
+      mkdir -p "$TARGET"
+      [ -x "$src" ] || chmod +x "$src"
+      if [ "$same" -eq 1 ]; then echo "= $name"
+      else
+        # Whatever is already there is kept, never deleted.
+        if [ -e "$dst" ] || [ -L "$dst" ]; then mv "$dst" "$dst.bak-$STAMP"; echo "  kept the previous $name as $name.bak-$STAMP"; fi
+        ln -sfn "$src" "$dst"; echo "→ $name"
+      fi
+      linked=$((linked + 1)) ;;
+  esac
+done
+
+case "$mode" in
+  check)
+    echo "$linked / ${#TOOLS[@]} linked in $TARGET"
+    [ "$drift" -eq 0 ] || { echo "Drift found. Nothing was written. Run ./install.sh to repair."; exit 1; } ;;
+  dry)       echo "Dry run. Nothing was written." ;;
+  uninstall) echo "$linked link(s) removed from $TARGET. Your config in $("$ROOT/bin/jamai" config path) is untouched." ;;
+  install)
+    echo "$linked / ${#TOOLS[@]} commands linked in $TARGET"
+    echo
+    "$ROOT/bin/jamai" doctor || true
+    cat <<EOF
+
+Next:
+  jamai-publish-melody examples/first-light.abc     render and publish a first melody
+  jamai hub serve                                   the melody page and its subscriptions, on your machine
+  jamai config show                                 every setting and where its value comes from
+EOF
+    ;;
 esac
