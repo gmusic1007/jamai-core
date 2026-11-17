@@ -177,7 +177,7 @@ Disabled in Home → Plugins after the update, enable it again.
 
 - Every live action and its parameters, and what was tried in MuseScore 4.7.7: [musescore/README.md](musescore/README.md).
 - Every page of the MuseScore handbook, and how jamai-core reaches it: [musescore/CAPABILITIES.md](musescore/CAPABILITIES.md).
-- What still stays by hand, and the routes to reach it by asking: [musescore/VISION.md](musescore/VISION.md).
+- What still stays by hand, and the routes to reach it by asking: [musescore/VISION.md](musescore/VISION.md), tracked in gmusic1007/jamai-core#7.
 
 The plugin comes from [mcp-musescore-gmusic](https://github.com/Gerico1007/mcp-musescore-gmusic), MIT.
 
