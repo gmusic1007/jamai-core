@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# jamai-render — turn ABC notation into something you can hear and read. It publishes nothing.
+#
+#   jamai-render <file.abc>                 writes beside nothing of yours: into a new folder
+#   echo "<abc text>" | jamai-render -
+#   jamai-render --out DIR --name NAME <file.abc>
+#
+# Writes NAME.abc, NAME.mid, NAME.wav, NAME.mp3 and, when abcm2ps is present, NAME.svg.
+# Default folder: $JAMAI_STATE_DIR/renders/NAME. NAME defaults to the slug of the T: title.
+# It is the same chain jamai-publish-melody uses: abc2midi, then FluidSynth at 44.1 kHz
+# with gain 0.9 through $JAMAI_SOUNDFONT, then LAME V2.
+#
+# The last lines printed are the files, one per line, as `kind<TAB>path`.
+set -euo pipefail
+
+_here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+[ -r "$_here/../lib/jamai-env.sh" ] && . "$_here/../lib/jamai-env.sh"
+
+SOUNDFONT="${JAMAI_SOUNDFONT:-/usr/share/sounds/sf2/FluidR3_GM.sf2}"
+STATE_DIR="${JAMAI_STATE_DIR:-$HOME/.local/state/jamai}"
+
+out=""; name=""; positional=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --out)  out="$2"; shift 2 ;;
+    --name) name="$2"; shift 2 ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set -euo/d'; exit 0 ;;
+    *) positional+=("$1"); shift ;;
+  esac
+done
+
+if [[ ${#positional[@]} -eq 0 || "${positional[0]}" == "-" ]]; then abc_text="$(cat)"
+else abc_text="$(cat "${positional[0]}")"; fi
+[[ -n "${abc_text// }" ]] || { echo "jamai-render: no ABC source" >&2; exit 2; }
+
+for t in abc2midi fluidsynth lame ffprobe; do
+  command -v "$t" >/dev/null || { echo "jamai-render: missing tool: $t (run: jamai doctor)" >&2; exit 3; }
+done
+[[ -r "$SOUNDFONT" ]] || { echo "jamai-render: soundfont missing at $SOUNDFONT (run: jamai doctor)" >&2; exit 3; }
+
+if [[ -z "$name" ]]; then
+  title="$(printf '%s\n' "$abc_text" | awk -F: '$1=="T" { sub(/^[ \t]+/,"",$2); print $2; exit }')"
+  name="$(printf '%s' "${title:-melody}" | iconv -t ASCII//TRANSLIT 2>/dev/null \
+          | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g')"
+  [[ -n "$name" ]] || name="melody"
+fi
+[[ -n "$out" ]] || out="$STATE_DIR/renders/$name"
+mkdir -p "$out"
+
+# Blank lines end a tune in ABC: strip them or the render stops early.
+printf '%s\n' "$abc_text" | awk 'NF' > "$out/$name.abc"
+abc2midi "$out/$name.abc" -o "$out/$name.mid" > "$out/abc2midi.log" 2>&1 \
+  || { echo "jamai-render: abc2midi failed:" >&2; cat "$out/abc2midi.log" >&2; exit 4; }
+fluidsynth -ni -F "$out/$name.wav" -r 44100 -g 0.9 "$SOUNDFONT" "$out/$name.mid" >/dev/null 2>&1
+lame -V2 -h --quiet "$out/$name.wav" "$out/$name.mp3"
+duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$out/$name.mp3")"
+
+if command -v abcm2ps >/dev/null; then
+  tmp="$(mktemp -d)"
+  if abcm2ps -g -O "$tmp/page.svg" "$out/$name.abc" > "$out/abcm2ps.log" 2>&1; then
+    n=0
+    for f in "$tmp"/page*.svg; do
+      [[ -e "$f" ]] || continue
+      n=$((n + 1))
+      if [[ $n -eq 1 ]]; then cp "$f" "$out/$name.svg"; else cp "$f" "$out/$name-p$n.svg"; fi
+    done
+  else
+    echo "jamai-render: abcm2ps refused the score (the audio is rendered). Its message:" >&2
+    sed 's/^/  /' "$out/abcm2ps.log" >&2
+  fi
+  rm -rf "$tmp"
+fi
+
+printf 'duration\t%.1f s\n' "$duration"
+for ext in abc mid wav mp3 svg; do
+  [[ -f "$out/$name.$ext" ]] && printf '%s\t%s\n' "$ext" "$out/$name.$ext"
+done
+exit 0

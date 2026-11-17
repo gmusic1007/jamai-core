@@ -1,0 +1,447 @@
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════════
+# jamai-publish-melody — render ABC notation to MP3 and add it to your melody page.
+#
+# Created by JamAI 🎸 of the G.Music Assembly. Drop an ABC notation in,
+# get back a link you can listen to.
+#
+# Usage:
+#   jamai-publish-melody <file.abc>
+#   echo "<abc text>" | jamai-publish-melody -
+#   jamai-publish-melody --slug my-tune --note "session note" <file.abc>
+#   jamai-publish-melody --video clip.mp4 <file.abc>
+#   jamai-publish-melody --no-announce <file.abc>     publish without telling subscribers
+#   jamai-publish-melody --reindex                    rebuild the page from the manifest
+#
+# Reads ABC headers (T: title, M: meter, K: key, Q: tempo).
+# The first T: line is the title; slug defaults to slugified title.
+#
+# What it does:
+#   1. ABC → MIDI (abc2midi) → WAV (FluidSynth + soundfont) → MP3 (LAME V2)
+#   2. Copies .abc/.mid/.mp3 and an optional .mp4/.mov video to the melody folder
+#   3. Updates melodies.json (newest first; dedupes by slug)
+#   4. Regenerates index.html from the manifest
+#   5. Announces one fact to the ledger, which the hub delivers to subscribers:
+#        melody.published   the slug is new
+#        melody.revised     the slug existed and the music changed (the MIDI differs)
+#        nothing            the slug existed and the MIDI is byte-identical
+#   6. Prints the listen address
+#
+# Where it publishes is yours to set, never built in: JAMAI_MELODY_DIR (the folder),
+# JAMAI_PUBLIC_BASE (its public address; empty means the page opens from the folder),
+# JAMAI_SOUNDFONT. `jamai setup` asks for them; `jamai config show` lists them.
+#
+# Requires: abc2midi fluidsynth lame ffprobe jq iconv. Optional: abcm2ps (the score).
+# ═══════════════════════════════════════════════════════════════════
+
+set -euo pipefail
+
+_here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+[ -r "$_here/../lib/jamai-env.sh" ] && . "$_here/../lib/jamai-env.sh"
+
+MELODY_DIR="${JAMAI_MELODY_DIR:-$HOME/.local/share/jamai/site/melody}"
+MANIFEST="${MELODY_DIR}/melodies.json"
+INDEX="${MELODY_DIR}/index.html"
+SOUNDFONT="${JAMAI_SOUNDFONT:-/usr/share/sounds/sf2/FluidR3_GM.sf2}"
+PUBLIC_BASE="${JAMAI_PUBLIC_BASE:-file://${MELODY_DIR}}"
+PUBLIC_BASE="${PUBLIC_BASE%/}"
+STATE_DIR="${JAMAI_STATE_DIR:-$HOME/.local/state/jamai}"
+LEDGER="${STATE_DIR}/events/ledger.jsonl"
+SITE_TITLE="${JAMAI_SITE_TITLE:-JamAI — Melody Atelier}"
+SITE_BYLINE="${JAMAI_SITE_BYLINE:-}"
+SITE_TAGLINE="${JAMAI_SITE_TAGLINE:-Session melodies, written in ABC notation.}"
+SITE_GLYPHS="${JAMAI_SITE_GLYPHS:-🎸}"
+HUB_PUBLIC_URL="${JAMAI_HUB_PUBLIC_URL:-}"
+html_escape() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g'; }
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed -e 's/^# \?//' -e '/^set -euo/d'; }
+
+# ── ABC → SVG (standard notation, engraved by abcm2ps) ──────────────
+# Writes <slug>.svg for page 1 and <slug>-p2.svg, -p3.svg … for any
+# further pages. Soft dependency: if abcm2ps is absent or fails, the
+# score is skipped and the melody still publishes with audio.
+render_score_svg() {
+  local abc_file="$1" out_slug="$2" outdir="$3"
+  command -v abcm2ps >/dev/null || return 0
+  local tmp; tmp="$(mktemp -d)"
+  if ! abcm2ps -g -O "$tmp/page.svg" "$abc_file" > "$tmp/abcm2ps.log" 2>&1; then
+    echo "jamai-publish-melody: abcm2ps failed for ${out_slug} — score skipped" >&2
+    sed 's/^/  /' "$tmp/abcm2ps.log" >&2
+    rm -rf "$tmp"; return 0
+  fi
+  rm -f "$outdir/${out_slug}.svg" "$outdir/${out_slug}"-p[0-9]*.svg
+  local n=0 f
+  for f in "$tmp"/page*.svg; do
+    [[ -e "$f" ]] || continue
+    n=$((n + 1))
+    if [[ $n -eq 1 ]]; then cp "$f" "$outdir/${out_slug}.svg"
+    else                   cp "$f" "$outdir/${out_slug}-p${n}.svg"; fi
+  done
+  rm -rf "$tmp"
+  [[ $n -gt 0 ]] || echo "jamai-publish-melody: abcm2ps produced no page for ${out_slug}" >&2
+  return 0
+}
+
+slug_override=""; note_override=""; video_input=""; reindex_only=0; announce=1; positional=()
+fact_line=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --slug)  slug_override="$2"; shift 2 ;;
+    --note)  note_override="$2"; shift 2 ;;
+    --video) video_input="$2"; shift 2 ;;
+    --reindex) reindex_only=1; shift ;;
+    --no-announce) announce=0; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) positional+=("$1"); shift ;;
+  esac
+done
+
+if [[ "$reindex_only" -eq 1 ]]; then
+# ── Reindex mode: no new melody, just rebuild index.html from the manifest ──
+[[ -f "$MANIFEST" ]] || { echo "jamai-publish-melody: no manifest at $MANIFEST" >&2; exit 3; }
+else
+
+# Read ABC source (file, stdin via "-", or stdin if no arg)
+if [[ ${#positional[@]} -eq 0 || "${positional[0]}" == "-" ]]; then
+  abc_text="$(cat)"
+else
+  abc_text="$(cat "${positional[0]}")"
+fi
+[[ -n "${abc_text// }" ]] || { echo "jamai-publish-melody: no ABC source" >&2; exit 2; }
+
+# Parse ABC headers
+get_header() {
+  printf '%s\n' "$abc_text" \
+    | awk -F: -v h="$1" '$1==h { sub(/^[ \t]+/,"",$2); print $2; exit }'
+}
+title="$(get_header T)"
+meter="$(get_header M)"
+key="$(get_header K)"
+tempo="$(get_header Q)"
+[[ -n "$title" ]] || { echo "jamai-publish-melody: ABC missing T: title header" >&2; exit 2; }
+
+# Slug: lowercase, ASCII, dash-separated
+slugify() {
+  printf '%s' "$1" \
+    | iconv -t ASCII//TRANSLIT 2>/dev/null \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'
+}
+slug="${slug_override:-$(slugify "$title")}"
+[[ -n "$slug" ]] || { echo "jamai-publish-melody: empty slug from title '$title'" >&2; exit 2; }
+
+video_name=""
+if [[ -n "$video_input" ]]; then
+  [[ -r "$video_input" ]] || { echo "jamai-publish-melody: video is not readable: $video_input" >&2; exit 2; }
+  video_ext="${video_input##*.}"
+  video_ext="$(printf '%s' "$video_ext" | tr '[:upper:]' '[:lower:]')"
+  case "$video_ext" in
+    mp4|mov) video_name="${slug}.${video_ext}" ;;
+    *) echo "jamai-publish-melody: video must be an .mp4 or .mov file" >&2; exit 2 ;;
+  esac
+fi
+
+# Toolchain check
+for t in abc2midi fluidsynth lame ffprobe jq iconv; do
+  command -v "$t" >/dev/null || { echo "jamai-publish-melody: missing tool: $t" >&2; exit 3; }
+done
+[[ -r "$SOUNDFONT" ]] || { echo "jamai-publish-melody: soundfont missing at $SOUNDFONT" >&2; exit 3; }
+
+# Render in a temp dir
+work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
+# Blank lines terminate a tune in ABC — strip them or the render truncates
+printf '%s\n' "$abc_text" | awk 'NF' > "$work/${slug}.abc"
+abc2midi    "$work/${slug}.abc" -o "$work/${slug}.mid" > "$work/abc2midi.log" 2>&1 \
+  || { echo "jamai-publish-melody: abc2midi failed:" >&2; cat "$work/abc2midi.log" >&2; exit 4; }
+fluidsynth  -ni -F "$work/${slug}.wav" -r 44100 -g 0.9 "$SOUNDFONT" "$work/${slug}.mid" >/dev/null 2>&1
+lame -V2 -h --quiet "$work/${slug}.wav" "$work/${slug}.mp3"
+duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$work/${slug}.mp3")"
+duration_int="$(printf '%.0f' "$duration")"
+[[ "$duration_int" -ge 3 ]] || { echo "jamai-publish-melody: rendered only ${duration_int}s — tune likely truncated. abc2midi log:" >&2; cat "$work/abc2midi.log" >&2; exit 4; }
+
+# What was there before decides which fact is announced (see the header).
+mkdir -p "$MELODY_DIR"
+new_sha="$(sha256sum "$work/${slug}.mid" | cut -d' ' -f1)"
+prev_sha=""
+[[ -f "$MELODY_DIR/${slug}.mid" ]] && prev_sha="$(sha256sum "$MELODY_DIR/${slug}.mid" | cut -d' ' -f1)"
+existed=0
+[[ -n "$prev_sha" ]] && existed=1
+if [[ "$existed" -eq 0 && -f "$MANIFEST" ]]; then
+  [[ "$(jq --arg slug "$slug" '[.[] | select(.slug == $slug)] | length' "$MANIFEST")" -gt 0 ]] && existed=1
+fi
+
+# Publish
+cp "$work/${slug}.abc" "$MELODY_DIR/${slug}.abc"
+cp "$work/${slug}.mid" "$MELODY_DIR/${slug}.mid"
+cp "$work/${slug}.mp3" "$MELODY_DIR/${slug}.mp3"
+if [[ -n "$video_name" ]]; then
+  cp "$video_input" "$MELODY_DIR/${video_name}"
+elif [[ -f "$MANIFEST" ]]; then
+  # Keep an already-attached video when only the notation/audio is republished.
+  video_name="$(jq -r --arg slug "$slug" '.[] | select(.slug == $slug) | .video // empty' "$MANIFEST" | head -n 1)"
+fi
+render_score_svg "$work/${slug}.abc" "$slug" "$MELODY_DIR"
+
+# Update manifest (newest first; dedupe by slug)
+date_now="$(date +%Y-%m-%d)"
+new_entry="$(jq -n \
+  --arg slug      "$slug" \
+  --arg title     "$title" \
+  --arg date      "$date_now" \
+  --arg key       "$key" \
+  --arg meter     "$meter" \
+  --arg tempo     "$tempo" \
+  --arg note      "$note_override" \
+  --arg video     "$video_name" \
+  --arg abc       "$abc_text" \
+  --arg midsha    "$new_sha" \
+  --argjson dur   "$duration_int" \
+  --argjson pub   "$(date +%s)" \
+  '{slug:$slug, title:$title, date:$date, key:$key, meter:$meter,
+    tempo:$tempo, duration_seconds:$dur, note:$note, video:$video, abc:$abc,
+    midi_sha256:$midsha, published_at:$pub}')"
+[[ -f "$MANIFEST" ]] || echo '[]' > "$MANIFEST"
+jq --argjson new "$new_entry" \
+  '[ $new ] + ( map(select(.slug != $new.slug)) )' \
+  "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+
+# Announce the fact. The publication above is already done: nothing here may fail it.
+# The fact carries identifiers and a digest, never the ABC source. The session note
+# stays out unless JAMAI_PUBLISH_NOTE_PUBLIC=1.
+fact_type=""
+if   [[ "$existed" -eq 0 ]];                              then fact_type="melody.published"
+elif [[ -z "$prev_sha" || "$prev_sha" != "$new_sha" ]];   then fact_type="melody.revised"
+fi
+if [[ "$announce" -eq 1 && -n "$fact_type" ]]; then
+  fact_note=""
+  [[ "${JAMAI_PUBLISH_NOTE_PUBLIC:-0}" == "1" ]] && fact_note="$note_override"
+  fact_score=""
+  [[ -f "$MELODY_DIR/${slug}.svg" ]] && fact_score="${PUBLIC_BASE}/${slug}.svg"
+  fact_video=""
+  [[ -n "$video_name" ]] && fact_video="${PUBLIC_BASE}/${video_name}"
+  if fact="$(jq -cn \
+      --arg id    "melody:${slug}:${new_sha:0:16}" \
+      --arg type  "$fact_type" \
+      --arg at    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg slug  "$slug" --arg title "$title" \
+      --arg url   "${PUBLIC_BASE}/${slug}.mp3" \
+      --arg page  "${PUBLIC_BASE}/#${slug}" \
+      --arg midi  "${PUBLIC_BASE}/${slug}.mid" \
+      --arg score "$fact_score" --arg video "$fact_video" \
+      --arg key   "$key" --arg meter "$meter" --arg tempo "$tempo" \
+      --arg sha   "$new_sha" --arg prev "${prev_sha:0:16}" --arg note "$fact_note" \
+      --argjson dur "$duration_int" \
+      '{id:$id, type:$type, at:$at, slug:$slug, title:$title, url:$url, page:$page, midi:$midi,
+        key:$key, meter:$meter, tempo:$tempo, duration_seconds:$dur, midi_sha256:$sha}
+       + (if $score != "" then {score:$score} else {} end)
+       + (if $video != "" then {video:$video} else {} end)
+       + (if $prev  != "" then {revises:$prev} else {} end)
+       + (if $note  != "" then {note:$note} else {} end)' 2>/dev/null)" \
+     && mkdir -p "$(dirname "$LEDGER")" 2>/dev/null \
+     && printf '%s\n' "$fact" >> "$LEDGER" 2>/dev/null; then
+    fact_line="📣 Announced: ${fact_type} (melody:${slug}:${new_sha:0:16})"
+  else
+    echo "jamai-publish-melody: the melody is published, but the fact could not be written to $LEDGER" >&2
+  fi
+elif [[ "$announce" -eq 1 ]]; then
+  fact_line="📣 Not announced: the music is unchanged (same MIDI as the last publication)"
+fi
+fi  # ── end publish mode ──
+
+# Regenerate index.html from manifest
+render_index() {
+  local h_title h_byline h_tagline h_glyphs
+  h_title="$(html_escape "$SITE_TITLE")"; h_byline="$(html_escape "$SITE_BYLINE")"
+  h_tagline="$(html_escape "$SITE_TAGLINE")"; h_glyphs="$(html_escape "$SITE_GLYPHS")"
+  cat <<HEAD
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${h_title}</title>
+  <meta name="description" content="${h_title}. ${h_tagline}">
+HEAD
+  cat <<'HEAD'
+  <style>
+    :root { --bg:#0c0f14; --bg-soft:#141923; --ink:#e8eef7; --ink-dim:#8895a6;
+            --accent:#f0a868; --accent-2:#8bd0c4; --line:#243244; --string:#c89b6a; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; line-height:1.55; }
+    a { color:var(--accent-2); text-decoration:none; }
+    a:hover { color:var(--accent); text-decoration:underline; }
+    .wrap { max-width:880px; margin:0 auto; padding:2.5rem 1.5rem 4rem; }
+    header { border-bottom:1px solid var(--line); padding-bottom:1.5rem; margin-bottom:2rem; }
+    .glyphs { font-size:1.4rem; letter-spacing:0.25rem; color:var(--accent); }
+    h1 { font-size:2rem; margin:0.4rem 0 0.2rem; font-weight:600; }
+    .sub { color:var(--ink-dim); font-size:0.95rem; margin:0; }
+    .sub em { color:var(--accent-2); font-style:normal; }
+    .intro { background:var(--bg-soft); border:1px solid var(--line); border-radius:10px;
+      padding:1.1rem 1.3rem; margin-bottom:2rem; font-size:0.95rem; color:var(--ink-dim); }
+    .intro b { color:var(--ink); }
+    .melody { background:var(--bg-soft); border:1px solid var(--line); border-radius:10px;
+      padding:1.3rem 1.4rem; margin-bottom:1.4rem; }
+    .melody h2 { margin:0 0 0.2rem; font-size:1.25rem; }
+    .meta { color:var(--ink-dim); font-size:0.85rem; margin:0 0 0.9rem; }
+    .meta span + span::before { content:" · "; color:var(--line); }
+    .score { background:#fdfcf9; border:1px solid var(--line); border-radius:8px;
+      padding:0.7rem 0.9rem; margin:0.3rem 0 0.9rem; overflow-x:auto; }
+    .score img { display:block; max-width:100%; height:auto; margin:0 auto; }
+    .score img + img { margin-top:0.7rem; padding-top:0.7rem; border-top:1px dashed #d8d4cc; }
+    audio { width:100%; margin:0.6rem 0 1rem; filter:invert(0.85) hue-rotate(180deg); }
+    video { display:block; width:100%; max-height:70vh; margin:0.6rem 0 1rem; border-radius:8px; background:#060810; }
+    .actions { display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.9rem; }
+    .actions a { background:transparent; border:1px solid var(--line); padding:0.35rem 0.75rem;
+      border-radius:6px; font-size:0.85rem; color:var(--ink); }
+    .actions a:hover { border-color:var(--accent); color:var(--accent); text-decoration:none; }
+    details { border-top:1px dashed var(--line); padding-top:0.7rem; margin-top:0.5rem; }
+    summary { cursor:pointer; color:var(--ink-dim); font-size:0.85rem; user-select:none; }
+    summary:hover { color:var(--accent-2); }
+    pre.abc { background:#060810; color:var(--string); padding:0.9rem 1rem; border-radius:6px;
+      margin:0.7rem 0 0; overflow-x:auto; font-size:0.85rem; line-height:1.5;
+      font-family:"JetBrains Mono","Fira Code",Menlo,Consolas,monospace; }
+    .empty { color:var(--ink-dim); font-style:italic; text-align:center; padding:2rem 0; }
+    footer { color:var(--ink-dim); font-size:0.8rem; text-align:center; margin-top:3rem;
+      padding-top:1.5rem; border-top:1px solid var(--line); }
+    footer .ensemble { color:var(--accent); letter-spacing:0.15rem; }
+    .subscribe { display:inline-block; margin-top:0.9rem; border:1px solid var(--line); border-radius:6px;
+      padding:0.35rem 0.75rem; font-size:0.85rem; color:var(--ink); }
+    .subscribe:hover { border-color:var(--accent); color:var(--accent); text-decoration:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+HEAD
+  echo "      <div class=\"glyphs\">${h_glyphs}</div>"
+  echo "      <h1>${h_title}</h1>"
+  echo "      <p class=\"sub\">${h_tagline}</p>"
+  [[ -n "$HUB_PUBLIC_URL" ]] && \
+    echo "      <a class=\"subscribe\" href=\"$(html_escape "${HUB_PUBLIC_URL%/}/")\">🔔 Receive each new melody</a>"
+  cat <<'HEAD'
+    </header>
+    <div class="intro">
+      <b>What lives here.</b> Each entry is a melody written in ABC notation during a working session.
+      It is rendered through FluidSynth and published as <code>.mp3</code>, engraved to standard
+      notation with <code>abcm2ps</code>, and kept with its <code>.abc</code> source, a <code>.mid</code>
+      file and the <code>.svg</code> score, so you can read it, render it again, transpose it, or play
+      it on any instrument. When a melody has a rendered clip, its video appears with it.
+    </div>
+HEAD
+
+  # Per-melody articles, newest first
+  if [[ "$(jq 'length' "$MANIFEST")" -eq 0 ]]; then
+    echo '    <div class="empty">No melodies yet. The Atelier awaits its first glyph.</div>'
+  else
+    jq -r '.[] | @base64' "$MANIFEST" | while read -r row; do
+      _j() { echo "$row" | base64 -d | jq -r "$1"; }
+      e_slug="$(_j '.slug')"
+      e_title="$(_j '.title')"
+      e_date="$(_j '.date')"
+      e_key="$(_j '.key')"
+      e_meter="$(_j '.meter')"
+      e_tempo="$(_j '.tempo')"
+      e_dur="$(_j '.duration_seconds')"
+      e_note="$(_j '.note')"
+      e_video="$(_j '.video // empty')"
+      # Re-published slugs keep their URL; ?v= makes each revision a fresh CDN cache key
+      e_rev="$(_j '.published_at // 0')"
+      e_abc_html="$(_j '.abc' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')"
+      tempo_disp=""
+      [[ -n "$e_tempo" ]] && tempo_disp="♩ = ${e_tempo#*=}"
+
+      cat <<ARTICLE
+    <article class="melody" id="${e_slug}">
+      <h2>${e_title}</h2>
+      <p class="meta">
+        <span>${e_date}</span>
+ARTICLE
+      [[ -n "$e_key" ]]    && echo "        <span>${e_key}</span>"
+      [[ -n "$e_meter" ]]  && echo "        <span>${e_meter}${tempo_disp:+ · $tempo_disp}</span>"
+      [[ "$e_dur" != "0" && "$e_dur" != "null" ]] && echo "        <span>~${e_dur} s</span>"
+      echo "      </p>"
+
+      s_rev=""
+      [[ -f "$MELODY_DIR/${e_slug}.svg" ]] && s_rev="$(stat -c %Y "$MELODY_DIR/${e_slug}.svg")"
+      # Scores remain available through the download link below. The card itself
+      # is kept compact: notation is never rendered inline on the portal.
+
+      if [[ -n "$e_video" && -f "$MELODY_DIR/${e_video}" ]]; then
+        video_rev="$(stat -c %Y "$MELODY_DIR/${e_video}")"
+        case "$e_video" in
+          *.mp4) video_type="video/mp4" ;;
+          *.mov) video_type="video/quicktime" ;;
+          *) video_type="application/octet-stream" ;;
+        esac
+        echo "      <video controls preload=\"metadata\">"
+        echo "        <source src=\"${e_video}?v=${video_rev}\" type=\"${video_type}\">"
+        echo "        Your browser cannot play this video. Use the download link below."
+        echo "      </video>"
+      fi
+
+      cat <<ARTICLE
+      <audio controls preload="none" src="${e_slug}.mp3?v=${e_rev}"></audio>
+      <div class="actions">
+        <a href="${e_slug}.mp3?v=${e_rev}" download>⬇ MP3</a>
+        <a href="${e_slug}.mid?v=${e_rev}" download>⬇ MIDI</a>
+        <a href="${e_slug}.abc?v=${e_rev}" download>⬇ ABC source</a>
+ARTICLE
+      [[ -f "$MELODY_DIR/${e_slug}.svg" ]] && \
+        echo "        <a href=\"${e_slug}.svg?s=${s_rev}\" download>⬇ Score (SVG)</a>"
+      [[ -n "$e_video" && -f "$MELODY_DIR/${e_video}" ]] && \
+        echo "        <a href=\"${e_video}?v=${video_rev}\" download>⬇ Video (${e_video##*.})</a>"
+      cat <<ARTICLE
+      </div>
+      <details>
+        <summary>Session note &amp; ABC notation</summary>
+ARTICLE
+      if [[ -n "$e_note" ]]; then
+        e_note_html="$(printf '%s' "$e_note" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')"
+        echo "        <p class=\"sub\" style=\"margin:0.6rem 0 0.5rem;\">${e_note_html}</p>"
+      fi
+      echo "<pre class=\"abc\">${e_abc_html}</pre>"
+      echo "      </details>"
+      echo "    </article>"
+    done
+  fi
+
+  echo "    <footer>"
+  [[ -n "$h_byline" ]] && echo "      <div class=\"ensemble\">${h_byline}</div>"
+  echo "      <p>Published with <a href=\"https://github.com/gmusic1007/jamai-core\">jamai-core</a></p>"
+  echo "    </footer>"
+  cat <<'TAIL'
+  </div>
+  <script>
+  // Auto-refresh: poll the manifest and reload when a newer publish appears.
+  (function () {
+    let baseline = null;
+    async function check() {
+      try {
+        const r = await fetch('melodies.json', { cache: 'no-store' });
+        const latest = (await r.json())
+          .reduce((max, e) => Math.max(max, e.published_at || 0), 0);
+        if (baseline === null) baseline = latest;
+        else if (latest > baseline) location.reload();
+      } catch (e) { /* offline or transient — try again next tick */ }
+    }
+    check();
+    setInterval(check, 15000);
+  })();
+  </script>
+</body>
+</html>
+TAIL
+}
+
+render_index > "${INDEX}.tmp" && mv "${INDEX}.tmp" "$INDEX"
+
+# Final report — single line for easy parsing by other tools/agents
+if [[ "$reindex_only" -eq 1 ]]; then
+  echo "🎼 Reindexed: $(jq 'length' "$MANIFEST") melodies"
+else
+  echo "🎸 Published: ${PUBLIC_BASE}/${slug}.mp3"
+  [[ -f "$MELODY_DIR/${slug}.svg" ]] && echo "🎼 Score:     ${PUBLIC_BASE}/${slug}.svg"
+  [[ -n "$fact_line" ]] && echo "$fact_line"
+fi
+echo "📖 Atelier:   ${PUBLIC_BASE}/"
