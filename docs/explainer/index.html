@@ -87,10 +87,10 @@ footer{margin-top:3rem;padding-top:1.4rem;border-top:1px solid var(--line);color
   it grew in. This page shows what was built that evening and how the parts connect.</p>
   <div class="facts">
     <div class="fact"><b>1</b><span>command to install</span></div>
-    <div class="fact"><b>19</b><span>commands linked</span></div>
-    <div class="fact"><b>24</b><span>settings declared, 13 asked</span></div>
-    <div class="fact"><b>69</b><span>checks in the self-test, all passing</span></div>
-    <div class="fact"><b>9</b><span>tools offered to an agent</span></div>
+    <div class="fact"><b>21</b><span>commands linked</span></div>
+    <div class="fact"><b>26</b><span>settings declared, 14 asked</span></div>
+    <div class="fact"><b>80</b><span>checks in the self-test, all passing</span></div>
+    <div class="fact"><b>11</b><span>tools offered to an agent</span></div>
   </div>
 </header>
 
@@ -120,10 +120,10 @@ JAMAI_PUBLIC_BASE
   Public address of that folder, such as https://example.org/melody. Empty: the page opens from the folder.
   [] &gt; <span class="o">https://music.example.org/melody</span>
 <span class="c">…</span>
-19 / 19 commands linked in /home/you/.local/bin
+21 / 21 commands linked in /home/you/.local/bin
 Render chain: whole. You can render and publish a melody.</pre>
 <div class="grid">
-  <div class="card"><h3>1 · Ask</h3><p>Thirteen questions, each with its purpose and a value in brackets. Enter keeps it.</p></div>
+  <div class="card"><h3>1 · Ask</h3><p>Fourteen questions, each with its purpose and a value in brackets. Enter keeps it.</p></div>
   <div class="card"><h3>2 · Write</h3><p>Answers go to one plain file. The single secret is generated and kept apart, readable only by you.</p></div>
   <div class="card"><h3>3 · Link</h3><p>Commands are linked by name. A file already there is renamed and kept, never deleted.</p></div>
   <div class="card"><h3>4 · Check</h3><p><code>jamai doctor</code> names each missing program, the package that brings it, and what stops without it.</p></div>
@@ -201,6 +201,8 @@ carries the order of work: write, render, check the chords against what sounds, 
 <tr><td><code>jamai_chords</code></td><td>The chord sounding on each beat of a MIDI file</td><td>no</td></tr>
 <tr><td><code>jamai_midi_notes</code></td><td>Every note of a MIDI file</td><td>no</td></tr>
 <tr><td><code>jamai_tab</code></td><td>Guitar tablature from one voice</td><td>no</td></tr>
+<tr><td><code>jamai_legacy_list</code></td><td>The ABC sessions written before the package</td><td>no</td></tr>
+<tr><td><code>jamai_musescore</code></td><td>Converts a melody for MuseScore, and opens it there when asked</td><td>no</td></tr>
 <tr><td><code>jamai_list_melodies</code>, <code>jamai_events</code></td><td>What is published, what was announced</td><td>no</td></tr>
 <tr><td><code>jamai_doctor</code>, <code>jamai_config</code></td><td>The state of the install</td><td>no</td></tr>
 <tr><td><code>jamai_publish_melody</code></td><td>Publishes and announces</td><td><b>yes</b></td></tr>
@@ -218,7 +220,7 @@ carries the order of work: write, render, check the chords against what sounds, 
   <div class="card"><span class="tag done">caught</span><h3>A defect, by the self-test</h3>
     <p>The first run failed 3 checks of 68. The hub compared two timestamps that only count seconds, so a fact
     from just before a subscription was delivered. The hub now counts by position in the ledger. The run after
-    the fix passed 69 of 69, with one check added for that case.</p></div>
+    the fix passed 69 of 69, with one check added for that case. The same 69 then passed in a clean Ubuntu container.</p></div>
   <div class="card"><span class="tag done">aligned</span><h3>With the access survey</h3>
     <p>A separate survey of the site proposed one sign-in for everything, with one-use invitations stored as
     hashes. The hub's invite codes follow that rule, and the hub keeps no list of people of its own.</p></div>
@@ -229,13 +231,14 @@ carries the order of work: write, render, check the chords against what sounds, 
   <div class="card"><span class="tag done">built and tested</span>
     <ul><li>The settings file and its loader</li><li>The installer, with check, dry-run and uninstall</li>
     <li>Publishing with no house address built in</li><li>The hub and signed delivery</li>
-    <li>The MCP server and the Claude plugin files</li></ul></div>
+    <li>The MCP server and the Claude plugin files</li>
+    <li>Listing older ABC sessions and converting them for MuseScore: 15 real sessions converted</li></ul></div>
   <div class="card"><span class="tag next">not done</span>
     <ul><li>The repository is not public, so only its owner can install it</li>
     <li>Jerry's own site still publishes with the old command</li><li>The hub is not running on the public site</li>
-    <li>The self-test has run on one machine only</li><li>The plugin has not been installed from the marketplace</li></ul></div>
+    <li>No MuseScore window has been opened by the command yet, only the conversion was run</li><li>The plugin has not been installed from the marketplace</li></ul></div>
   <div class="card"><span class="tag next">next</span>
-    <ul><li>Open a legacy ABC session in MuseScore and publish it</li><li>Sign in once on the site</li>
+    <ul><li>Let an agent open a file inside a running MuseScore</li><li>Sign in once on the site</li>
     <li>Bring in the drop watcher, the clip tools and the speaker bridge</li><li>Fix five defects the sessions reported</li>
     <li>Choose a licence</li></ul></div>
 </div>
