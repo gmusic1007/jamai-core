@@ -6,8 +6,12 @@ a tuplet, lyrics, measures, an instrument, change the tempo or the time signatur
 undo. Each change appears in the score as it is made, and MuseScore's own undo reverses it.
 
 It comes from [Gerico1007/mcp-musescore-gmusic](https://github.com/Gerico1007/mcp-musescore-gmusic),
-a fork of George Chen's MuseScore MCP server, under the MIT licence in `LICENSE` beside it. It is
-copied here unchanged, so jamai-core can install it with the rest of the package.
+a fork of George Chen's MuseScore MCP server, under the MIT licence in `LICENSE` beside it.
+
+One change from that copy, marked `jamai-core:` in the file. `addNote`, `addRest` and `addTuplet`
+with `advanceCursorAfterAction` failed on the last element of a score: the cursor had nowhere to go,
+the plugin threw "Value is null" and MuseScore undid the note. Found on 2026-11-17, writing the last
+note of a flute part in MuseScore 4.7.7. The plugin now stays on the element it just wrote.
 
 ## Starting it
 
@@ -15,8 +19,10 @@ copied here unchanged, so jamai-core can install it with the rest of the package
 jamai-musescore --install-plugin      # copies it into MuseScore's plugins folder (install.sh does it too)
 ```
 
-Then in MuseScore, once: **Home → Plugins**, enable **MuseScore API Server**. Each session:
-**Plugins → MuseScore API Server**. The plugin must be running, not only enabled.
+Then in MuseScore, once: **Home → Plugins**, click **musescore-mcp-websocket** and **Enable**. Each
+session: open a score, then start it from the **Plugins** menu. MuseScore 4.7 names it
+musescore-mcp-websocket; older versions name it MuseScore API Server. The plugin must be running, not
+only enabled, and it changes the score that is open.
 
 ```bash
 jamai-musescore --live ping           # "pong" when MuseScore is listening

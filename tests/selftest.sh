@@ -245,7 +245,7 @@ check "the stand-in answers" wait_for "jamai-musescore --live ping"
 check "--live ping gets pong" bash -c "jamai-musescore --live ping | jq -e '.result == \"pong\"'"
 check "--live sends an action with its params" bash -c "jamai-musescore --live addNote '{\"pitch\":60,\"duration\":{\"numerator\":1,\"denominator\":4}}' >/dev/null && tail -n1 '$T/live.log' | jq -e '.action == \"addNote\" and .params.pitch == 60 and .params.duration.denominator == 4'"
 quiet_port="$(free_port)"
-check "with nothing listening, it says how to start the plugin (exit 3)" bash -c "JAMAI_MUSESCORE_LIVE_PORT=$quiet_port jamai-musescore --live ping 2>&1 | grep -q 'Plugins → MuseScore API Server'; test \${PIPESTATUS[0]} -eq 3"
+check "with nothing listening, it says how to start the plugin (exit 3)" bash -c "JAMAI_MUSESCORE_LIVE_PORT=$quiet_port jamai-musescore --live ping 2>&1 | grep -q 'enable \"musescore-mcp-websocket\"'; test \${PIPESTATUS[0]} -eq 3"
 
 echo "── mcp"
 printf '%s\n' \

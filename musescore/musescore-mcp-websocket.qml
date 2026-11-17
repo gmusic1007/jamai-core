@@ -660,6 +660,9 @@ MuseScore {
 
             if (params.advanceCursorAfterAction) {
                 cursor.next();
+                // jamai-core: past the last element of the score there is nothing to move to.
+                // Stay on what was just written, instead of failing and undoing it.
+                if (!cursor.element) cursor.rewindToTick(selectionState.startTick);
             }
 
             var element = processElement(cursor.element);
@@ -703,6 +706,9 @@ MuseScore {
 
             if (params.advanceCursorAfterAction) {
                 cursor.next();
+                // jamai-core: past the last element of the score there is nothing to move to.
+                // Stay on what was just written, instead of failing and undoing it.
+                if (!cursor.element) cursor.rewindToTick(selectionState.startTick);
             }
 
             var element = processElement(cursor.element);
@@ -745,6 +751,9 @@ MuseScore {
 
             if (params.advanceCursorAfterAction) {
                 cursor.next();
+                // jamai-core: past the last element of the score there is nothing to move to.
+                // Stay on what was just written, instead of failing and undoing it.
+                if (!cursor.element) cursor.rewindToTick(selectionState.startTick);
             }
 
             var element = processElement(cursor.element);

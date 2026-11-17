@@ -25,7 +25,8 @@ import sys
 HOST = "127.0.0.1"
 NOT_RUNNING = (
     "MuseScore is not listening on port {port}. In MuseScore: Home → Plugins, enable "
-    "\"MuseScore API Server\", then start it from the Plugins menu (Plugins → MuseScore API Server). "
+    "\"musescore-mcp-websocket\", then open a score and start it from the Plugins menu "
+    "(MuseScore 4.7 lists it as musescore-mcp-websocket, older versions as MuseScore API Server). "
     "If it is not in the list, install it with: jamai-musescore --install-plugin, then restart MuseScore."
 )
 
