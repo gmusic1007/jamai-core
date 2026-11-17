@@ -7,7 +7,7 @@
       "name": "jamai",
       "source": "./claude/jamai",
       "description": "Compose, render and publish music from ABC notation through the jamai-core tools, as MCP tools and a skill.",
-      "version": "0.2.0"
+      "version": "0.3.0"
     }
   ]
 }

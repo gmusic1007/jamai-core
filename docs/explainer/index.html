@@ -89,8 +89,8 @@ footer{margin-top:3rem;padding-top:1.4rem;border-top:1px solid var(--line);color
     <div class="fact"><b>1</b><span>command to install</span></div>
     <div class="fact"><b>21</b><span>commands linked</span></div>
     <div class="fact"><b>28</b><span>settings declared, 14 asked</span></div>
-    <div class="fact"><b>94</b><span>checks in the self-test, all passing</span></div>
-    <div class="fact"><b>11</b><span>tools offered to an agent</span></div>
+    <div class="fact"><b>103</b><span>checks in the self-test, all passing</span></div>
+    <div class="fact"><b>14</b><span>tools offered to an agent</span></div>
   </div>
 </header>
 
@@ -205,6 +205,8 @@ carries the order of work: write, render, check the chords against what sounds, 
 <tr><td><code>jamai_musescore</code></td><td>Converts a melody for MuseScore, and opens it there when asked</td><td>no</td></tr>
 <tr><td><code>jamai_list_melodies</code>, <code>jamai_events</code></td><td>What is published, what was announced</td><td>no</td></tr>
 <tr><td><code>jamai_doctor</code>, <code>jamai_config</code></td><td>The state of the install</td><td>no</td></tr>
+<tr><td><code>musescore_live_status</code>, <code>musescore_get_score</code></td><td>Is MuseScore listening, and what is in the open score</td><td>no</td></tr>
+<tr><td><code>musescore_live</code></td><td>Changes the score open in MuseScore while the person watches: notes, rests, lyrics, measures, tempo, instruments, undo</td><td>no, but it changes the open score</td></tr>
 <tr><td><code>jamai_publish_melody</code></td><td>Publishes and announces</td><td><b>yes</b></td></tr>
 </tbody></table></div>
 
@@ -233,19 +235,19 @@ carries the order of work: write, render, check the chords against what sounds, 
     <li>Publishing with no house address built in</li><li>The hub and signed delivery</li>
     <li>The MCP server and the Claude plugin files</li>
     <li>Listing older ABC sessions and converting them for MuseScore: 15 real sessions converted</li>
+    <li>Live MuseScore: on 17 November an agent added a flute part, 16 notes, to the score open on Jerry's screen</li>
+    <li>Public since 17 November, with a one-line install and a Debian package</li>
     <li>Four reported defects fixed: <code>-d</code> on the speaker and the screen (and part of a name is enough), instruments shown, a gain setting</li></ul></div>
   <div class="card"><span class="tag next">not done</span>
-    <ul><li>The repository is not public, so only its owner can install it</li>
-    <li>Jerry's own site still publishes with the old command</li><li>The hub is not running on the public site</li>
-    <li>No MuseScore window has been opened by the command yet, only the conversion was run</li><li>The plugin has not been installed from the marketplace</li></ul></div>
+    <ul>    <li>Jerry's own site still publishes with the old command</li><li>The hub is not running on the public site</li>
+    <li>The plugin has not been installed from the marketplace</li></ul></div>
   <div class="card"><span class="tag next">next</span>
-    <ul><li>Let an agent open a file inside a running MuseScore</li><li>Sign in once on the site</li>
-    <li>Bring in the drop watcher, the clip tools and the speaker bridge</li><li>Fix the tablature and the tempo reading, two defects still open</li>
-    <li>Choose a licence</li></ul></div>
+    <ul><li>Sign in once on the site</li>
+    <li>Bring in the drop watcher, the clip tools and the speaker bridge</li><li>Fix the tablature and the tempo reading, two defects still open</li></ul></div>
 </div>
 
 <footer>
-  <p>jamai-core 0.2.0 · written 16 November 2026 · G.Music Assembly · <a href="../">the melody page</a></p>
+  <p>jamai-core 0.3.0 · written 16 and 17 November 2026 · G.Music Assembly · <a href="../">the melody page</a></p>
 </footer>
 </div>
 </body>
