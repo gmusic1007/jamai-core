@@ -11,6 +11,7 @@
 #   jamai-publish-melody --slug my-tune --note "session note" <file.abc>
 #   jamai-publish-melody --video clip.mp4 <file.abc>
 #   jamai-publish-melody --no-announce <file.abc>     publish without telling subscribers
+#   jamai-publish-melody --gain-db 10 <file.abc>      louder by 10 dB (default: JAMAI_GAIN_DB, else 0)
 #   jamai-publish-melody --reindex                    rebuild the page from the manifest
 #
 # Reads ABC headers (T: title, M: meter, K: key, Q: tempo).
@@ -25,6 +26,7 @@
 #        melody.published   the slug is new
 #        melody.revised     the slug existed and the music changed (the MIDI differs)
 #        nothing            the slug existed and the MIDI is byte-identical
+#      A change of gain alone leaves the MIDI identical, so it is published and not announced.
 #   6. Prints the listen address
 #
 # Where it publishes is yours to set, never built in: JAMAI_MELODY_DIR (the folder),
@@ -82,6 +84,12 @@ render_score_svg() {
   return 0
 }
 
+# Gain in dB → FluidSynth's linear gain, which applies to the WAV and the MP3 alike.
+# 0 dB is the 0.9 every render used before; FluidSynth accepts at most 10 (about +21 dB).
+fluid_gain() {
+  awk -v d="$1" 'BEGIN { if (d !~ /^[-+]?[0-9]+([.][0-9]+)?$/) exit 1; g = 0.9 * 10 ^ (d / 20); if (g > 10) g = 10; printf "%.4f", g }'
+}
+gain_db="${JAMAI_GAIN_DB:-0}"
 slug_override=""; note_override=""; video_input=""; reindex_only=0; announce=1; positional=()
 fact_line=""
 while [[ $# -gt 0 ]]; do
@@ -91,6 +99,7 @@ while [[ $# -gt 0 ]]; do
     --video) video_input="$2"; shift 2 ;;
     --reindex) reindex_only=1; shift ;;
     --no-announce) announce=0; shift ;;
+    --gain-db) gain_db="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) positional+=("$1"); shift ;;
   esac
@@ -146,6 +155,7 @@ for t in abc2midi fluidsynth lame ffprobe jq iconv; do
   command -v "$t" >/dev/null || { echo "jamai-publish-melody: missing tool: $t" >&2; exit 3; }
 done
 [[ -r "$SOUNDFONT" ]] || { echo "jamai-publish-melody: soundfont missing at $SOUNDFONT" >&2; exit 3; }
+gain="$(fluid_gain "$gain_db")" || { echo "jamai-publish-melody: --gain-db must be a number of dB, got: $gain_db" >&2; exit 2; }
 
 # Render in a temp dir
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
@@ -153,7 +163,7 @@ work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 printf '%s\n' "$abc_text" | awk 'NF' > "$work/${slug}.abc"
 abc2midi    "$work/${slug}.abc" -o "$work/${slug}.mid" > "$work/abc2midi.log" 2>&1 \
   || { echo "jamai-publish-melody: abc2midi failed:" >&2; cat "$work/abc2midi.log" >&2; exit 4; }
-fluidsynth  -ni -F "$work/${slug}.wav" -r 44100 -g 0.9 "$SOUNDFONT" "$work/${slug}.mid" >/dev/null 2>&1
+fluidsynth  -ni -F "$work/${slug}.wav" -r 44100 -g "$gain" "$SOUNDFONT" "$work/${slug}.mid" >/dev/null 2>&1
 lame -V2 -h --quiet "$work/${slug}.wav" "$work/${slug}.mp3"
 duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$work/${slug}.mp3")"
 duration_int="$(printf '%.0f' "$duration")"
@@ -195,11 +205,12 @@ new_entry="$(jq -n \
   --arg video     "$video_name" \
   --arg abc       "$abc_text" \
   --arg midsha    "$new_sha" \
+  --arg gaindb    "$gain_db" \
   --argjson dur   "$duration_int" \
   --argjson pub   "$(date +%s)" \
   '{slug:$slug, title:$title, date:$date, key:$key, meter:$meter,
     tempo:$tempo, duration_seconds:$dur, note:$note, video:$video, abc:$abc,
-    midi_sha256:$midsha, published_at:$pub}')"
+    midi_sha256:$midsha, gain_db:($gaindb|tonumber), published_at:$pub}')"
 [[ -f "$MANIFEST" ]] || echo '[]' > "$MANIFEST"
 jq --argjson new "$new_entry" \
   '[ $new ] + ( map(select(.slug != $new.slug)) )' \

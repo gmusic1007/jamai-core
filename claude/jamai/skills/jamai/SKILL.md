@@ -62,8 +62,10 @@ Pass `--no-announce` when the person wants a publication without a notification.
 - A bare `Q:` line in the body of a tune is ignored. Put the tempo in the header.
 - General MIDI program 31 is an electric guitar sample in FluidR3 and stays bright at any
   velocity. For a soft guitar use program 24 (nylon).
-- The published MP3 is rendered at FluidSynth gain 0.9 with no loudness correction. A quiet
-  arrangement publishes quiet.
+- A quiet arrangement publishes quiet: one measured −26.5 LUFS. Pass `--gain-db` to
+  `jamai-render` and `jamai-publish-melody`. The gain is linear with no limiter, so check the
+  peak (`ffmpeg -i f.wav -af ebur128=peak=true -f null -`) before publishing. A gain change
+  alone is not announced to subscribers, because the MIDI is the same.
 
 ## Settings
 

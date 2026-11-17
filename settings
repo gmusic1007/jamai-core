@@ -20,6 +20,7 @@ JAMAI_STATE_DIR | quiet | ~/.local/state/jamai | Facts ledger, hub data and rend
 
 # ── Render: ABC to sound ─────────────────────────────────────────────
 JAMAI_SOUNDFONT | ask | /usr/share/sounds/sf2/FluidR3_GM.sf2 | General MIDI soundfont that FluidSynth plays through.
+JAMAI_GAIN_DB | quiet | 0 | Gain in dB for jamai-render and jamai-publish-melody. Linear, no limiter: +10 can clip a loud piece.
 JAMAI_MUSESCORE_BIN | quiet | | MuseScore program for jamai-musescore. Empty: the first one found on your PATH.
 
 # ── Legacy: ABC sessions written before the package ──────────────────

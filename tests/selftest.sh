@@ -203,6 +203,15 @@ abc2midi "$T/instruments.abc" -o "$T/instruments.mid" > /dev/null 2>&1
 jamai-midi.py "$T/instruments.mid" > "$T/instruments.txt" 2>&1
 check "jamai-midi.py shows the nylon guitar (program 24)" grep -q 'programme 24 (Acoustic Guitar (nylon))' "$T/instruments.txt"
 check "jamai-midi.py shows the cello (program 42)" grep -q 'programme 42 (Cello)' "$T/instruments.txt"
+loudness() { ffmpeg -nostats -i "$1" -af volumedetect -f null - 2>&1 | sed -n 's/.*mean_volume: \(-\{0,1\}[0-9.]*\) dB.*/\1/p'; }
+jamai-render --out "$T/gain0" --name g "$ROOT/examples/first-light.abc" > /dev/null 2>&1
+jamai-render --out "$T/gain6" --name g --gain-db 6 "$ROOT/examples/first-light.abc" > /dev/null 2>&1
+diff_db="$(awk -v a="$(loudness "$T/gain0/g.wav")" -v b="$(loudness "$T/gain6/g.wav")" 'BEGIN { printf "%.2f", b - a }')"
+check "--gain-db 6 makes the render 6 dB louder (measured: $diff_db dB)" awk -v d="$diff_db" 'BEGIN { exit !(d > 5.5 && d < 6.5) }'
+check "--gain-db refuses a word" bash -c "! jamai-render --gain-db loud '$ROOT/examples/first-light.abc' > /dev/null 2>&1"
+jamai-publish-melody --gain-db 3 --no-announce "$ROOT/examples/first-light.abc" > /dev/null 2>&1
+check "the manifest records the gain" test "$(jq -r '.[] | select(.slug == "first-light") | .gain_db' "$T/site/melody/melodies.json")" = 3
+
 echo "── mcp"
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"selftest","version":"0"}}}' \

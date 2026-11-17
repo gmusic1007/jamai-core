@@ -52,6 +52,9 @@ jamai-publish-melody examples/first-light.abc    # add it to your melody page
 `melodies.json` and the index page in `JAMAI_MELODY_DIR`, and prints the listen address. With
 `JAMAI_PUBLIC_BASE` empty, that address is a file on your machine: no web host is needed to start.
 
+A soft arrangement renders quiet. `--gain-db 10` (or `JAMAI_GAIN_DB`) lifts both the WAV and the MP3.
+The gain is linear with no limiter, so measure the peak before going far: a loud piece can clip.
+
 ## Settings
 
 Three sources, first match wins: the environment, then `~/.config/jamai/jamai.env`, then the
@@ -171,10 +174,10 @@ by name.
 tests/selftest.sh
 ```
 
-It installs into a throwaway folder and checks 80 things: the settings and the links, a render,
+It installs into a throwaway folder and checks 89 things: the settings and the links, a render,
 the three publication cases, the hub's invite, signature, single delivery and refusals, byte
-ranges, a legacy session listed, converted for MuseScore and published, the MCP server, and
-that no house address is in the packaged code. Where MuseScore is absent, its three checks are
+ranges, a legacy session listed, converted for MuseScore and published, the defects fixed under
+gmusic1007/jamai-core#4, the MCP server, and that no house address is in the packaged code. Where MuseScore is absent, its three checks are
 skipped and one other check confirms the command says so. It touches none of
 your files and reaches no outside address.
 
