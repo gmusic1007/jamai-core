@@ -21,8 +21,8 @@ links the commands into `~/.local/bin`. Then `jamai doctor` names any system pro
 **With apt** (Debian, Ubuntu): the package brings the system programs too.
 
 ```bash
-curl -fsSLO https://github.com/gmusic1007/jamai-core/releases/download/v0.4.0/jamai-core_0.4.0_all.deb
-sudo apt install ./jamai-core_0.4.0_all.deb
+curl -fsSLO https://github.com/gmusic1007/jamai-core/releases/download/v0.4.1/jamai-core_0.4.1_all.deb
+sudo apt install ./jamai-core_0.4.1_all.deb
 jamai setup
 ```
 
@@ -56,6 +56,9 @@ The installer does four things, in this order:
 lame ffmpeg jq librsvg2-bin imagemagick python3-numpy python3-scipy python3-pil`. Optional, for
 a screen and a speaker: `pipx install catt edge-tts`. Tested on Ubuntu. Other systems are untested.
 
+MuseScore is not needed for the commands above. To add it, and to let an agent change the score open
+on your screen: [MuseScore: activate it, step by step](#musescore-activate-it-step-by-step).
+
 ## A first melody
 
 ```bash
@@ -84,7 +87,111 @@ jamai setup                       # ask them all again
 Nothing about where you publish is built into a tool. The self-test fails if a house address
 appears in the packaged code.
 
-## Older sessions, and MuseScore
+## MuseScore: activate it, step by step
+
+jamai-core works with MuseScore Studio 4 in two ways:
+
+- **With no window**: export, video and metadata, through MuseScore's own converter. Needs step 1 only.
+- **Live**: an agent changes the score open on your screen while you watch. Needs steps 1 to 4.
+
+### 1. Install or update MuseScore
+
+```bash
+jamai-musescore --install-musescore                  # the latest MuseScore Studio
+jamai-musescore --install-musescore --version 4.7.7  # a given version
+jamai-musescore --install-musescore --dry-run        # say what it would do, download nothing
+```
+
+On Linux (x86_64 or aarch64), it takes the AppImage from MuseScore's GitHub releases and checks it
+against the sha256 GitHub publishes for that file: a file that does not match is refused. It installs
+for you only, with no sudo, in `~/.local/share/jamai/musescore`, keeps older versions beside it,
+sets `JAMAI_MUSESCORE_BIN`, adds a `musescore4` command unless you already have one, and does step 2.
+Run it again to update. AppImages need libfuse2: `sudo apt install libfuse2t64` on Ubuntu 24.04,
+`libfuse2` on older ones.
+
+On macOS or Windows, install MuseScore Studio from [musescore.org](https://musescore.org/download),
+then point jamai-core at it: `jamai config set JAMAI_MUSESCORE_BIN "<path to MuseScore>"`. Untested there.
+
+Check: `jamai doctor` shows `ok  score  musescore`.
+
+### 2. Put the plugin in place
+
+```bash
+jamai-musescore --install-plugin
+```
+
+`install.sh` and `--install-musescore` already do it. The plugin goes in the folder MuseScore reads
+plugins from (the one in MuseScore's settings, else `~/Documents/MuseScore4/Plugins`).
+Check: `jamai doctor` shows `ok  live  plugin`.
+
+### 3. Enable it in MuseScore, once
+
+Open MuseScore, then **Home → Plugins**, click **musescore-mcp-websocket**, then **Enable**.
+
+### 4. Start it, each session
+
+Open the score you want to work on, then **Plugins → musescore-mcp-websocket**.
+
+- MuseScore 4 gives each score its own window. The plugin changes the score of the window where you
+  started it, and only that one.
+- Only one window can run it at a time. To work on another score, close the window where it runs,
+  then start it in the other one.
+
+### 5. Check that it answers
+
+```bash
+jamai-musescore --live version     # "variant": "jamai-core", "version": "0.4.2"
+jamai-musescore --live getScore    # what the open score holds
+```
+
+### 6. Ask for changes
+
+From an agent with `jamai-mcp` (see [For an agent](#for-an-agent-mcp-server-and-claude-plugin)), in words:
+"add a flute part", "a forte on the third note", "a trill on the first note of measure 2",
+"tempo 72 here", "export a PDF and an MP3". From a terminal:
+
+```bash
+jamai-musescore --live addNote '{"pitch": 60, "duration": {"numerator": 1, "denominator": 4}, "advanceCursorAfterAction": true}'
+jamai-musescore --live addElement '{"kind": "articulation", "name": "staccato"}'
+```
+
+MuseScore's undo (Ctrl+Z) reverses each change.
+
+### After updating jamai-core
+
+Run `jamai-musescore --install-plugin`, then **quit MuseScore completely and reopen it**. A running
+MuseScore keeps answering with the plugin copy it started first. If the plugin is listed under
+Disabled in Home → Plugins after the update, enable it again.
+
+### When it does not answer
+
+| you see | why | do |
+|---|---|---|
+| `MuseScore is not listening on port 8765` | the plugin is not started | step 4 |
+| `Unknown command: version` | an older copy of the plugin is running | quit and reopen MuseScore |
+| `QTcpServer::listen() called when already listening` in MuseScore's log | the plugin was started twice; the first copy keeps the port | quit and reopen MuseScore |
+| the plugin is not in the Plugins menu | not enabled, or not in the plugins folder | step 3, or `jamai-musescore --install-plugin`, then restart MuseScore |
+| `MuseScore is not installed` | no MuseScore found | step 1 |
+
+### What it reaches, and what comes next
+
+- Every live action and its parameters, and what was tried in MuseScore 4.7.7: [musescore/README.md](musescore/README.md).
+- Every page of the MuseScore handbook, and how jamai-core reaches it: [musescore/CAPABILITIES.md](musescore/CAPABILITIES.md).
+- What still stays by hand, and the routes to reach it by asking: [musescore/VISION.md](musescore/VISION.md).
+
+The plugin comes from [mcp-musescore-gmusic](https://github.com/Gerico1007/mcp-musescore-gmusic), MIT.
+
+### With no window: export, video, metadata
+
+```bash
+jamai-musescore --export pdf,mp3,musicxml song.mscz    # mscz mscx pdf png svg mid musicxml mxl mei mp3 flac ogg wav aac
+jamai-musescore --export pdf --parts song.mscz         # every part after the full score
+jamai-musescore --export musicxml --transpose-semitones 2 song.mscz
+jamai-musescore --video song.mscz                      # MP4 of the score scrolling, with its audio
+jamai-musescore --meta song.mscz                       # title, key, measures, parts… as JSON
+```
+
+### Older sessions
 
 ```bash
 jamai-legacy list ~/old-sessions            # every ABC session under a folder: date, key, meter, tempo, title
@@ -97,31 +204,6 @@ MIDI: `abc2midi` writes the MIDI file and MuseScore's own converter turns it int
 rhythm, tempo, key and instruments come through. Chord symbols, lyrics and voice names do not.
 `--no-open` converts without opening a window. Set `JAMAI_LEGACY_DIRS` to list without naming a
 folder each time.
-
-### Live: an agent changes the score while you watch
-
-`install.sh` puts a MuseScore plugin in MuseScore's plugins folder when MuseScore is installed
-(`jamai-musescore --install-plugin` does it by hand). In MuseScore, once: **Home → Plugins**, enable
-**musescore-mcp-websocket**. Each session: open a score and start the plugin from the **Plugins** menu. From then on, an agent with
-`jamai-mcp` adds notes, rests, lyrics, dynamics, measures and instruments, or changes the tempo, in the score open
-on your screen, and MuseScore's undo reverses each change. From a terminal:
-
-```bash
-jamai-musescore --live ping                 # "pong" when MuseScore is listening
-jamai-musescore --live addNote '{"pitch": 60, "duration": {"numerator": 1, "denominator": 4}}'
-```
-
-Every action and its parameters: [`musescore/README.md`](musescore/README.md). Every page of the MuseScore
-handbook, and how jamai-core reaches it: [`musescore/CAPABILITIES.md`](musescore/CAPABILITIES.md).
-
-### With no window: export, video, metadata
-
-```bash
-jamai-musescore --export pdf,mp3,musicxml song.mscz    # mscz mscx pdf png svg mid musicxml mxl mei mp3 flac ogg wav aac
-jamai-musescore --video song.mscz                      # MP4 of the score scrolling, with its audio
-```
- The plugin comes from
-[mcp-musescore-gmusic](https://github.com/Gerico1007/mcp-musescore-gmusic), MIT.
 
 ## People who want your music: the hub
 
@@ -195,7 +277,7 @@ by name.
 | | `jamai-measure.py` | tempo, structure, pitch and timbre of a recording |
 | | `jamai-grille.py` | measure the bar grid before writing the score |
 | `render/` | `jamai-render` | ABC to MIDI, WAV, MP3 and an engraved score |
-| | `jamai-musescore` | open a melody in MuseScore as an editable score |
+| | `jamai-musescore` | install or update MuseScore; open a melody in it; export, video and metadata with no window; live control (`--live`) |
 | | `jamai-tab.py` | six-line guitar tablature from ABC |
 | | `jamai-score-video.py` | score video, one system at a time |
 | | `jamai-scroll.py` | score video scrolling left to right under a red playhead |

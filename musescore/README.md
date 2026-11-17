@@ -43,24 +43,9 @@ window where it runs first.
 
 ## Starting it
 
-```bash
-jamai-musescore --install-plugin      # copies it into MuseScore's plugins folder (install.sh does it too)
-```
-
-Then in MuseScore, once: **Home → Plugins**, click **musescore-mcp-websocket** and **Enable**. Each
-session: open a score, then start it from the **Plugins** menu. MuseScore 4.7 names it
-musescore-mcp-websocket; older versions name it MuseScore API Server. The plugin must be running, not
-only enabled, and it changes the score that is open.
-
-**After updating the plugin, quit and reopen MuseScore.** MuseScore keeps its WebSocket with the copy
-started first: starting the new copy only logs `QTcpServer::listen() called when already listening`, and
-the old copy goes on answering. `jamai-musescore --live version` says which copy answers: an older one
-replies `Unknown command: version`.
-
-```bash
-jamai-musescore --live ping           # "pong" when MuseScore is listening
-jamai-musescore --live getScore
-```
+The steps (install or update MuseScore, put the plugin in place, enable it once, start it each
+session, check it answers, what to do when it does not) are in the main README:
+[MuseScore: activate it, step by step](../README.md#musescore-activate-it-step-by-step).
 
 ## With no window: export, video, metadata
 

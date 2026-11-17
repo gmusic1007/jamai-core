@@ -48,7 +48,9 @@ package that brings it, and what stops working without it.
 
 When the person has MuseScore open with the plugin running, `musescore_live` changes their score as
 they watch. Check first with `musescore_live_status`; if it is not listening, tell the person the two
-clicks it names, do not guess. Read with `musescore_get_score` before writing. Move with `goToMeasure`,
+clicks it names, do not guess. The full activation (install MuseScore with `jamai-musescore
+--install-musescore`, enable, start, check, troubleshoot) is the README section "MuseScore: activate it,
+step by step". What stays by hand, and how it could be reached later: musescore/VISION.md. Read with `musescore_get_score` before writing. Move with `goToMeasure`,
 then `addNote` / `addRest`, which advance the cursor. Every change can be reversed with `undo`, and the
 person can press Ctrl+Z. Change only what was asked.
 
