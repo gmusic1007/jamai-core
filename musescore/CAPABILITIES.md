@@ -11,7 +11,8 @@ Every page of the [MuseScore Studio 4 handbook](https://handbook.musescore.org/)
 | **in MuseScore** | done by the person in MuseScore's window: settings, panels, accounts. The plugin interface MuseScore 4.7 offers has no way in |
 | **not yet** | MuseScore's plugin interface allows it and jamai-core does not do it yet |
 
-What was tried live, and what failed, is in [README.md](README.md#tried-in-musescore-477-2026-11-17).
+What was tried live, and what failed, is in [README.md](README.md#tried-in-musescore-477-2026-11-17). What stays
+by hand today, and the routes to reach it by asking: [VISION.md](VISION.md).
 
 A plugin in MuseScore 4.7 cannot run MenuBar commands: its interface has no `cmd()`, so a feature
 that exists only as a menu item or a panel stays **in MuseScore**.
@@ -20,7 +21,7 @@ that exists only as a menu item or a panel stays **in MuseScore**.
 
 | page | how |
 |---|---|
-| Download and installation | **in MuseScore**. `jamai doctor` says whether MuseScore is installed, and `install.sh` puts the plugin in place |
+| Download and installation | **jamai** `jamai-musescore --install-musescore` installs or updates MuseScore on Linux, checksum checked, and puts the plugin in place. On macOS and Windows: **in MuseScore**'s own installer |
 | Create your first score | **in MuseScore** (File → New), then start the plugin in that score's window. `newScore` creates a score, but MuseScore 4 opens it in a window the plugin does not reach |
 | Upgrading from earlier versions | nothing to do |
 | Accessibility, The user interface, Timeline, Braille | **in MuseScore** |
