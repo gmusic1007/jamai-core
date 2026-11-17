@@ -85,7 +85,7 @@ that exists only as a menu item or a panel stays **in MuseScore**.
 | Tempo markings | **live** `addElement {kind: tempo, bpm, text?}` (it sets playback speed too) and `setTempo` |
 | Lyrics | **live** `addLyrics {lyrics: [syllables], verse}` |
 | Fingering | **live** `addElement {kind: fingering, text, note?}` |
-| Chord symbols | **live** `addElement {kind: chordSymbol, text: "Am7"}`. **jamai** names chords from MIDI or audio: `jamai-chords.py`, `jamai-chords-audio.py` |
+| Chord symbols | **in MuseScore** (select the note, Ctrl+K): adding one from a plugin crashed MuseScore 4.7.7 on 2026-11-17, so `addElement chordSymbol` refuses with that message. **jamai** names chords from MIDI or audio: `jamai-chords.py`, `jamai-chords-audio.py` |
 | Figured bass | **not yet** |
 | Rehearsal marks | **live** `addElement {kind: rehearsalMark, text}` |
 | Header and footer | **in MuseScore** |

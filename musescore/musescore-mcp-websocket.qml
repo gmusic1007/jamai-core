@@ -116,8 +116,14 @@ MuseScore {
                 if ((kind === "articulation" || kind === "ornament") && target.type !== Element.CHORD)
                     throw new Error("an " + kind + " goes on a note, and the cursor is on a " + target.name);
                 el = newElement(symbolKinds[kind]);
-                el.symbol = table[name];
+                // MuseScore 4.7 wants the symbol from its SymId list: a plain string was read back as 0.
+                var symName = table[name];
+                el.symbol = (typeof SymId !== "undefined" && SymId[symName] !== undefined) ? SymId[symName] : symName;
                 cursor.add(el);
+                var symbolSet = (typeof SymId !== "undefined" && SymId[symName] !== undefined) ? (el.symbol == SymId[symName]) : null;
+            } else if (kind === "chordSymbol") {
+                // Seen 2026-11-17: adding a chord symbol from a plugin crashed MuseScore 4.7.7 (segmentation fault).
+                throw new Error("a chord symbol added by a plugin crashes MuseScore 4.7.7; add it in MuseScore: select the note, then Ctrl+K");
             } else if (textKinds[kind] !== undefined) {
                 if (!params.text) throw new Error(kind + " needs text");
                 el = newElement(textKinds[kind]);
@@ -172,8 +178,10 @@ MuseScore {
             } else {
                 throw new Error("kind must be one of: articulation, ornament, fermata, breath, staffText, systemText, expression, rehearsalMark, chordSymbol, fingering, tempo, keySignature, layoutBreak, arpeggio, hairpin, ottava");
             }
-            return { success: true, kind: kind, name: name, tick: cursor.tick, staff: cursor.staffIdx,
-                     attachedHere: jamaiAttached(cursor) };
+            var reply = { success: true, kind: kind, name: name, tick: cursor.tick, staff: cursor.staffIdx,
+                          attachedHere: jamaiAttached(cursor) };
+            if (typeof symbolSet !== "undefined" && symbolSet !== null) reply.symbolSet = symbolSet;
+            return reply;
         });
     }
 
@@ -227,7 +235,7 @@ MuseScore {
 
     // jamai-core: the plugin's own version, so a client can tell this copy from an older one.
     function pluginVersion() {
-        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.4.0",
+        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.4.1",
                  actions: ["addDynamic", "addElement", "setScoreText", "newScore", "openScore", "saveScore", "version"] };
     }
 
