@@ -174,7 +174,7 @@ by name.
 tests/selftest.sh
 ```
 
-It installs into a throwaway folder and checks 89 things: the settings and the links, a render,
+It installs into a throwaway folder and checks 94 things: the settings and the links, a render,
 the three publication cases, the hub's invite, signature, single delivery and refusals, byte
 ranges, a legacy session listed, converted for MuseScore and published, the defects fixed under
 gmusic1007/jamai-core#4, the MCP server, and that no house address is in the packaged code. Where MuseScore is absent, its three checks are
