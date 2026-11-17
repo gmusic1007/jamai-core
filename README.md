@@ -21,8 +21,8 @@ links the commands into `~/.local/bin`. Then `jamai doctor` names any system pro
 **With apt** (Debian, Ubuntu): the package brings the system programs too.
 
 ```bash
-curl -fsSLO https://github.com/gmusic1007/jamai-core/releases/download/v0.3.1/jamai-core_0.3.1_all.deb
-sudo apt install ./jamai-core_0.3.1_all.deb
+curl -fsSLO https://github.com/gmusic1007/jamai-core/releases/download/v0.4.0/jamai-core_0.4.0_all.deb
+sudo apt install ./jamai-core_0.4.0_all.deb
 jamai setup
 ```
 

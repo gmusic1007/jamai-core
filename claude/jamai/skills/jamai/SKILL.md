@@ -40,7 +40,7 @@ package that brings it, and what stops working without it.
 | "what did we write before?" | `jamai-legacy list <folder>` |
 | "open it in MuseScore" | `jamai-musescore file.abc` (`--no-open` to convert only) |
 | "a PDF / an MP3 / MusicXML of it", "transpose it", "a video of the score" | `musescore_export`, `musescore_video` (`jamai-musescore --export`, `--video`) |
-| "change it in MuseScore while I watch", "forte on that note", "a trill here", "chord symbol Am7" | `musescore_live_status`, then `musescore_live` (or `jamai-musescore --live <action>`) |
+| "change it in MuseScore while I watch", "forte on that note", "a trill here", "tempo 72 here" | `musescore_live_status`, then `musescore_live` (or `jamai-musescore --live <action>`) |
 | "publish it" | `jamai-publish-melody` |
 | "who receives my music?" | `jamai-hub subscriptions` |
 
@@ -53,8 +53,9 @@ then `addNote` / `addRest`, which advance the cursor. Every change can be revers
 person can press Ctrl+Z. Change only what was asked.
 
 Markings go on the element at the cursor: move first, then `addElement` with its `kind` (articulation,
-ornament, fermata, breath, staffText, expression, chordSymbol, fingering, tempo, keySignature,
-layoutBreak, arpeggio, hairpin, ottava) or `addDynamic`. Read the reply's `attachedHere`: it is what
+ornament, fermata, breath, staffText, systemText, expression, rehearsalMark, fingering, tempo,
+keySignature, layoutBreak, arpeggio) or `addDynamic`. Chord symbols, crescendo hairpins and octave
+lines are refused in MuseScore 4.7.7: tell the person to add them in MuseScore. Read the reply's `attachedHere`: it is what
 MuseScore holds there now. What the plugin cannot do (clefs, slurs, repeats, settings) is listed in
 musescore/CAPABILITIES.md; say so to the person rather than trying.
 
