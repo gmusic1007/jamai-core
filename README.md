@@ -9,6 +9,25 @@ was born: one command, and it asks for every setting it needs.
 
 ## Install
 
+**One line, no root needed** (Linux or macOS with bash and git):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gmusic1007/jamai-core/main/install.sh | bash
+```
+
+It clones the repository into `~/.local/share/jamai-core`, asks its questions on your terminal, and
+links the commands into `~/.local/bin`. Then `jamai doctor` names any system program still missing.
+
+**With apt** (Debian, Ubuntu): the package brings the system programs too.
+
+```bash
+curl -fsSLO https://github.com/gmusic1007/jamai-core/releases/download/v0.2.0/jamai-core_0.2.0_all.deb
+sudo apt install ./jamai-core_0.2.0_all.deb
+jamai setup
+```
+
+**From a clone**, to change the code:
+
 ```bash
 git clone https://github.com/gmusic1007/jamai-core.git
 ./jamai-core/install.sh
@@ -33,11 +52,7 @@ The installer does four things, in this order:
 | `./install.sh --dry-run` | says what an install would do |
 | `./install.sh --uninstall` | removes the links, keeps your config |
 
-Piped (`curl -fsSL …/install.sh | bash`), the same script clones the repository into
-`~/.local/share/jamai-core` first and asks its questions on your terminal. That form needs the
-repository to be readable without signing in, which is not the case today.
-
-**System programs** (Debian and Ubuntu names): `abcmidi abcm2ps fluidsynth fluid-soundfont-gm
+**System programs**, if you did not install with apt (Debian and Ubuntu names): `abcmidi abcm2ps fluidsynth fluid-soundfont-gm
 lame ffmpeg jq librsvg2-bin imagemagick python3-numpy python3-scipy python3-pil`. Optional, for
 a screen and a speaker: `pipx install catt edge-tts`. Tested on Ubuntu. Other systems are untested.
 
