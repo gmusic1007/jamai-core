@@ -32,7 +32,18 @@ _here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
 DEVICE="${JAMAI_CAST_DEVICE:-}"
 PORT="${JAMAI_CAST_PORT:-8899}"
-if [ -z "$DEVICE" ]; then
+# Options are read before anything else. -d used to be read after the device check, so it
+# never worked, and -p was documented but never read.
+_rest=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -d) DEVICE="${2:?-d needs a device name}"; shift 2 ;;
+    -p) PORT="${2:?-p needs a port}"; shift 2 ;;
+    *) _rest+=("$1"); shift ;;
+  esac
+done
+set -- "${_rest[@]+"${_rest[@]}"}"
+if [ -z "$DEVICE" ] && [ "${1:-}" != "--rescan" ]; then
   cat >&2 <<'FIN'
 ✗ aucun appareil nommé.
   Ce dépôt ne connaît aucune maison : le nom de l'appareil vient de toi.
@@ -113,7 +124,6 @@ case "${1:-}" in
     say "✓ affichage eteint sur $DEVICE (le serveur reste debout)"
     exit 0 ;;
   --rescan) scan_cache; cat "$CACHE"; exit 0 ;;
-  -d) DEVICE="${2:?}"; shift 2 ;;
 esac
 [ $# -ge 1 ] || die "quel visuel ? (jamai-cast <fichier.html> | --url <URL>)"
 

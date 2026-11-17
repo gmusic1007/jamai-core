@@ -189,6 +189,15 @@ jamai-publish-melody "$T/legacy/2025/251017_old_session.abc" > "$T/publish-legac
 check "the legacy session publishes" grep -q 'https://music.example.org/melody/old-session-theme.mp3' "$T/publish-legacy.log"
 check "and is announced as a new melody" test "$(tail -n1 "$T/state/events/ledger.jsonl" | jq -r '.type + " " + .slug')" = "melody.published old-session-theme"
 
+echo "── fixed defects (gmusic1007/jamai-core#4)"
+JAMAI_SAY_DEVICE= EDGE_TTS="$T/no-such-edge-tts" jamai-say -d "Test speaker" "hello" > "$T/say.out" 2>&1; say_rc=$?
+check "jamai-say reads -d (it reaches the voice step, exit 1, not the device refusal, exit 2)" bash -c "test $say_rc -eq 1 && grep -q 'edge-tts' '$T/say.out'"
+JAMAI_SAY_DEVICE= jamai-say "hello" > /dev/null 2>&1; say_rc=$?
+check "jamai-say without a device still refuses (exit 2)" test "$say_rc" -eq 2
+JAMAI_CAST_DEVICE= jamai-cast -d "Test screen" > "$T/cast.out" 2>&1; cast_rc=$?
+check "jamai-cast reads -d (it asks for a page, exit 1, not the device refusal, exit 2)" test "$cast_rc" -eq 1
+JAMAI_CAST_DEVICE= jamai-cast > /dev/null 2>&1; cast_rc=$?
+check "jamai-cast without a device still refuses (exit 2)" test "$cast_rc" -eq 2
 echo "── mcp"
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"selftest","version":"0"}}}' \

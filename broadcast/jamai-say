@@ -36,17 +36,6 @@ _here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
 DEVICE="${JAMAI_SAY_DEVICE:-}"
 VOIX="${JAMAI_SAY_VOICE:-fr-CA-SylvieNeural}"
-if [ -z "$DEVICE" ]; then
-  cat >&2 <<'FIN'
-✗ aucun appareil nommé.
-  Ce dépôt ne connaît aucune maison : le nom de l'appareil vient de toi.
-    -d "<nom>"                          ponctuellement
-    JAMAI_SAY_DEVICE="<nom>"        pour la session
-    routine <moment> dire "…"    si tu as gmusic-routine
-  Les noms visibles ici :  catt scan
-FIN
-  exit 2
-fi
 
 DEBIT="${JAMAI_SAY_RATE:--5%}"
 GARDER=0
@@ -65,6 +54,18 @@ while [ $# -gt 0 ]; do
     *) break ;;
   esac
 done
+# The device is checked after the options are read: checked before, `-d` never worked.
+if [ -z "$DEVICE" ]; then
+  cat >&2 <<'FIN'
+✗ aucun appareil nommé.
+  Ce dépôt ne connaît aucune maison : le nom de l'appareil vient de toi.
+    -d "<nom>"                          ponctuellement
+    JAMAI_SAY_DEVICE="<nom>"        pour la session
+    routine <moment> dire "…"    si tu as gmusic-routine
+  Les noms visibles ici :  catt scan
+FIN
+  exit 2
+fi
 TEXTE="${1:-}"
 [ -n "$TEXTE" ] || die "quoi dire ? (jamai-say \"…\")"
 [ -x "$EDGE" ] || die "edge-tts introuvable"
