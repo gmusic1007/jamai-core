@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""jamai-mcp — the jamai-core tools as an MCP server, over stdio.
+
+An agent that speaks the Model Context Protocol can render ABC, read a MIDI file, name its
+chords, draw a tablature, publish a melody and read what was announced, without knowing
+where this checkout lives.
+
+  Claude Code:   claude mcp add jamai -- jamai-mcp
+  Any client:    {"mcpServers": {"jamai": {"command": "jamai-mcp"}}}
+
+It runs the same commands a person runs, with the same settings (`jamai config show`).
+`jamai_publish_melody` is the only tool that changes a published page: call it when the
+person asked for a publication, never as a side effect.
+
+Python standard library only. One JSON-RPC message per line.
+"""
+import json
+import os
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import jamai_env  # noqa: E402
+
+CFG = jamai_env.load()
+ROOT = jamai_env.ROOT
+LIMIT = 20000          # characters of tool output returned to the agent
+try:
+    VERSION = open(os.path.join(ROOT, "VERSION"), encoding="utf-8").read().strip()
+except OSError:
+    VERSION = "unknown"
+
+
+def run(args, stdin=None, timeout=300):
+    try:
+        done = subprocess.run(args, input=stdin, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return "timed out after %d s: %s" % (timeout, " ".join(args)), True
+    except OSError as exc:
+        return "could not run %s: %s" % (args[0], exc), True
+    text = (done.stdout + ("\n" + done.stderr if done.stderr.strip() else "")).strip()
+    if len(text) > LIMIT:
+        text = text[:LIMIT] + "\n… (%d more characters not shown)" % (len(text) - LIMIT)
+    if done.returncode != 0:
+        text = (text + "\n" if text else "") + "exit code %d" % done.returncode
+    return text or "(no output)", done.returncode != 0
+
+
+def tool(path):
+    return os.path.join(ROOT, path)
+
+
+def t_doctor(a):
+    return run([tool("bin/jamai"), "doctor"])
+
+
+def t_config(a):
+    return run([tool("bin/jamai"), "config", "show"])
+
+
+def t_render(a):
+    args = [tool("render/jamai-render")]
+    if a.get("name"):
+        args += ["--name", str(a["name"])]
+    return run(args + ["-"], stdin=str(a["abc"]))
+
+
+def t_midi_notes(a):
+    return run([sys.executable, tool("listen/jamai-midi.py"), str(a["midi_path"])])
+
+
+def t_chords(a):
+    return run([sys.executable, tool("listen/jamai-chords.py"), str(a["midi_path"]),
+                str(int(a.get("beats_per_bar", 4)))])
+
+
+def t_tab(a):
+    args = [sys.executable, tool("render/jamai-tab.py"), str(a["abc_path"]), "--voix", str(int(a.get("voice", 1)))]
+    if a.get("out"):
+        args += ["--out", str(a["out"])]
+    return run(args)
+
+
+def t_publish(a):
+    args = [tool("publish/jamai-publish-melody")]
+    if a.get("slug"):
+        args += ["--slug", str(a["slug"])]
+    if a.get("note"):
+        args += ["--note", str(a["note"])]
+    if a.get("announce") is False:
+        args.append("--no-announce")
+    return run(args + ["-"], stdin=str(a["abc"]))
+
+
+def t_melodies(a):
+    path = os.path.join(CFG["JAMAI_MELODY_DIR"], "melodies.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            manifest = json.load(fh)
+    except (OSError, ValueError):
+        return "no melody has been published in %s yet" % CFG["JAMAI_MELODY_DIR"], False
+    rows = ["%s  %s  %s  %s  %ss  %s" % (m.get("date", ""), m.get("slug", ""), m.get("key", ""),
+                                         m.get("meter", ""), m.get("duration_seconds", "?"), m.get("title", ""))
+            for m in manifest[: int(a.get("limit", 20))]]
+    return "%d melodies in %s\n%s" % (len(manifest), CFG["JAMAI_MELODY_DIR"], "\n".join(rows)), False
+
+
+def t_events(a):
+    path = os.path.join(CFG["JAMAI_STATE_DIR"], "events", "ledger.jsonl")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = [line.strip() for line in fh if line.strip()]
+    except OSError:
+        return "no fact has been announced yet (%s does not exist)" % path, False
+    return "\n".join(lines[-int(a.get("limit", 10)):]) or "the ledger is empty", False
+
+
+def schema(properties, required=()):
+    return {"type": "object", "properties": properties, "required": list(required)}
+
+
+STR, INT, BOOL = {"type": "string"}, {"type": "integer"}, {"type": "boolean"}
+TOOLS = [
+    ("jamai_doctor", "Check this install: which render, score, video, measure and broadcast tools are present, "
+     "which are missing, and what each missing one stops. Run it first when a jamai tool fails.",
+     schema({}), t_doctor),
+    ("jamai_config", "Show every jamai setting, its value and where the value comes from. Secrets are hidden.",
+     schema({}), t_config),
+    ("jamai_render", "Render ABC notation to MIDI, WAV, MP3 and an engraved SVG score in a work folder. "
+     "Publishes nothing. Returns the path of each file written.",
+     schema({"abc": dict(STR, description="The ABC source, with X:, T:, M:, L:, K: headers."),
+             "name": dict(STR, description="File name stem. Default: the slug of the T: title.")}, ["abc"]), t_render),
+    ("jamai_midi_notes", "List the notes of a MIDI file one by one: time, duration, pitch, ABC spelling, velocity.",
+     schema({"midi_path": STR}, ["midi_path"]), t_midi_notes),
+    ("jamai_chords", "Name the chord sounding on every beat of a MIDI file. Use it to check a harmony "
+     "against what was intended, on the source and again on the render.",
+     schema({"midi_path": STR, "beats_per_bar": dict(INT, description="Default 4.")}, ["midi_path"]), t_chords),
+    ("jamai_tab", "Draw a six-line guitar tablature (PNG) from one voice of an ABC file.",
+     schema({"abc_path": STR, "voice": dict(INT, description="Voice number, default 1."),
+             "out": dict(STR, description="Output PNG path.")}, ["abc_path"]), t_tab),
+    ("jamai_publish_melody", "Render an ABC melody and add it to the person's melody page, then announce it to "
+     "subscribers when it is new or its music changed. This changes a published page: call it only when the "
+     "person asked to publish. Returns the listen address.",
+     schema({"abc": dict(STR, description="The ABC source. Its T: header is the title."),
+             "slug": dict(STR, description="Address name. Default: the slug of the title. Reusing a slug replaces that melody."),
+             "note": dict(STR, description="Session note shown on the page."),
+             "announce": dict(BOOL, description="False publishes without telling subscribers. Default true.")},
+            ["abc"]), t_publish),
+    ("jamai_list_melodies", "List the melodies already published: date, slug, key, meter, duration, title.",
+     schema({"limit": dict(INT, description="Default 20.")}), t_melodies),
+    ("jamai_events", "Show the last facts announced to subscribers (melody.published, melody.revised).",
+     schema({"limit": dict(INT, description="Default 10.")}), t_events),
+]
+BY_NAME = {name: fn for name, _, _, fn in TOOLS}
+
+
+def handle(msg):
+    method, params = msg.get("method"), msg.get("params") or {}
+    if method == "initialize":
+        return {"protocolVersion": params.get("protocolVersion") or "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "jamai-core", "version": VERSION},
+                "instructions": "Tools for writing, hearing and publishing music from ABC notation. "
+                                "Render and listen before publishing. Publish only when asked."}
+    if method == "ping":
+        return {}
+    if method == "tools/list":
+        return {"tools": [{"name": n, "description": d, "inputSchema": s} for n, d, s, _ in TOOLS]}
+    if method == "tools/call":
+        fn = BY_NAME.get(params.get("name"))
+        if fn is None:
+            raise LookupError("unknown tool: %s" % params.get("name"))
+        try:
+            text, failed = fn(params.get("arguments") or {})
+        except KeyError as exc:
+            text, failed = "missing argument: %s" % exc.args[0], True
+        except (TypeError, ValueError) as exc:
+            text, failed = "bad argument: %s" % exc, True
+        return {"content": [{"type": "text", "text": text}], "isError": failed}
+    raise LookupError("method not found: %s" % method)
+
+
+def main():
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except ValueError:
+            reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "parse error"}}
+            sys.stdout.write(json.dumps(reply) + "\n")
+            sys.stdout.flush()
+            continue
+        if "id" not in msg:            # a notification: nothing to answer
+            continue
+        try:
+            reply = {"jsonrpc": "2.0", "id": msg["id"], "result": handle(msg)}
+        except LookupError as exc:
+            reply = {"jsonrpc": "2.0", "id": msg["id"], "error": {"code": -32601, "message": str(exc)}}
+        sys.stdout.write(json.dumps(reply, ensure_ascii=False) + "\n")
+        sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+    else:
+        main()

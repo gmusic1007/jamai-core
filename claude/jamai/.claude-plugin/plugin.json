@@ -1,0 +1,8 @@
+{
+  "name": "jamai",
+  "description": "Compose, render and publish music from ABC notation through the jamai-core tools. Needs jamai-core installed first (its install.sh puts jamai-mcp on your PATH).",
+  "version": "0.2.0",
+  "author": { "name": "gmusic1007" },
+  "homepage": "https://github.com/gmusic1007/jamai-core/tree/main/claude/jamai",
+  "keywords": ["music", "abc-notation", "midi", "composition", "publishing", "webhooks"]
+}

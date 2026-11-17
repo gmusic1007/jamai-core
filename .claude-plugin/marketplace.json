@@ -1,0 +1,13 @@
+{
+  "name": "jamai-core",
+  "description": "JamAI's composition workshop: write music in ABC notation, hear it, read it, publish it, and let people subscribe to it.",
+  "owner": { "name": "gmusic1007" },
+  "plugins": [
+    {
+      "name": "jamai",
+      "source": "./claude/jamai",
+      "description": "Compose, render and publish music from ABC notation through the jamai-core tools, as MCP tools and a skill.",
+      "version": "0.2.0"
+    }
+  ]
+}
