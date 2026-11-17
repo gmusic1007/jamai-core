@@ -198,6 +198,11 @@ JAMAI_CAST_DEVICE= jamai-cast -d "Test screen" > "$T/cast.out" 2>&1; cast_rc=$?
 check "jamai-cast reads -d (it asks for a page, exit 1, not the device refusal, exit 2)" test "$cast_rc" -eq 1
 JAMAI_CAST_DEVICE= jamai-cast > /dev/null 2>&1; cast_rc=$?
 check "jamai-cast without a device still refuses (exit 2)" test "$cast_rc" -eq 2
+printf 'X:1\nT:Two Instruments\nM:4/4\nL:1/4\nQ:1/4=100\nK:C\nV:1\n%%%%MIDI program 24\nCDEF|G4|]\nV:2\n%%%%MIDI program 42\nC,4|C,4|]\n' > "$T/instruments.abc"
+abc2midi "$T/instruments.abc" -o "$T/instruments.mid" > /dev/null 2>&1
+jamai-midi.py "$T/instruments.mid" > "$T/instruments.txt" 2>&1
+check "jamai-midi.py shows the nylon guitar (program 24)" grep -q 'programme 24 (Acoustic Guitar (nylon))' "$T/instruments.txt"
+check "jamai-midi.py shows the cello (program 42)" grep -q 'programme 42 (Cello)' "$T/instruments.txt"
 echo "── mcp"
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"selftest","version":"0"}}}' \
