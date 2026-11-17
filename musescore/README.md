@@ -27,6 +27,11 @@ session: open a score, then start it from the **Plugins** menu. MuseScore 4.7 na
 musescore-mcp-websocket; older versions name it MuseScore API Server. The plugin must be running, not
 only enabled, and it changes the score that is open.
 
+**After updating the plugin, quit and reopen MuseScore.** MuseScore keeps its WebSocket with the copy
+started first: starting the new copy only logs `QTcpServer::listen() called when already listening`, and
+the old copy goes on answering. `jamai-musescore --live version` says which copy answers: an older one
+replies `Unknown command: version`.
+
 ```bash
 jamai-musescore --live ping           # "pong" when MuseScore is listening
 jamai-musescore --live getScore
