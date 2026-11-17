@@ -19,6 +19,10 @@
 # yours. Default: ~/.config/gmusic-routine/moments  (override: $GMUSIC_MOMENTS)
 set -euo pipefail
 
+# Settings: the environment first, then ~/.config/jamai/jamai.env, then the defaults in `settings`.
+_here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+[ -r "$_here/../lib/jamai-env.sh" ] && . "$_here/../lib/jamai-env.sh"
+
 DIR="${GMUSIC_MOMENTS:-$HOME/.config/gmusic-routine/moments}"
 
 list() {

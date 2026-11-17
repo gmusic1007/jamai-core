@@ -1,0 +1,48 @@
+# jamai-core settings — every variable the package reads, one per line.
+#
+#   NAME | kind | default | what it is for
+#
+# kind:  ask     the installer asks for it
+#        quiet   not asked; the default applies until you `jamai config set` it
+#        secret  asked without echo, kept apart in secrets.env (mode 600)
+#        auto    written by the installer
+#
+# Three sources, first match wins:
+#   1. a value already in the environment
+#   2. ~/.config/jamai/jamai.env   (plain KEY=VALUE, also readable by systemd and docker)
+#   3. the default on this line
+# A leading ~/ in a default means your home folder.
+
+# ── Where things live ────────────────────────────────────────────────
+JAMAI_CORE_ROOT | auto | | This checkout. Services and the Claude plugin find the tools through it.
+JAMAI_BIN | ask | ~/.local/bin | Folder on your PATH where the jamai commands are linked.
+JAMAI_STATE_DIR | quiet | ~/.local/state/jamai | Facts ledger, hub data and renders.
+
+# ── Render: ABC to sound ─────────────────────────────────────────────
+JAMAI_SOUNDFONT | ask | /usr/share/sounds/sf2/FluidR3_GM.sf2 | General MIDI soundfont that FluidSynth plays through.
+
+# ── Publish: the melody page ─────────────────────────────────────────
+JAMAI_MELODY_DIR | ask | ~/.local/share/jamai/site/melody | Folder that receives each published melody and the page that lists them.
+JAMAI_PUBLIC_BASE | ask | | Public address of that folder, such as https://example.org/melody. Empty: the page opens from the folder.
+JAMAI_SITE_TITLE | ask | JamAI — Melody Atelier | Title of the melody page.
+JAMAI_SITE_BYLINE | ask | | Who makes this music. Shown in the page footer.
+JAMAI_SITE_TAGLINE | quiet | Session melodies, written in ABC notation. | One line under the title.
+JAMAI_SITE_GLYPHS | quiet | 🎸 | Glyphs shown above the title.
+JAMAI_PUBLISH_NOTE_PUBLIC | quiet | 0 | 1 puts a melody's session note into the announced fact. 0 keeps the note on the page only.
+
+# ── Hub: subscriptions and webhooks ──────────────────────────────────
+JAMAI_HUB_HOST | quiet | 127.0.0.1 | Address the hub listens on.
+JAMAI_HUB_PORT | ask | 8642 | Port the hub listens on.
+JAMAI_HUB_PUBLIC_URL | ask | | Public address of the hub once a web server routes to it. Empty: the melody page shows no subscribe link.
+JAMAI_HUB_OPEN_SUBSCRIPTIONS | ask | 0 | 1 lets anyone subscribe. 0 asks each subscriber for an invite code you hand out.
+JAMAI_HUB_ALLOW_PRIVATE_TARGETS | quiet | 0 | 1 lets a webhook point at a local or private address. Keep 0 on a public hub.
+JAMAI_HUB_MAX_SUBSCRIPTIONS | quiet | 200 | The hub refuses new subscriptions past this number.
+JAMAI_HUB_INVITE_DAYS | quiet | 7 | Days before an unused invite code expires.
+JAMAI_HUB_ADMIN_TOKEN | secret | generate | Token for the hub's admin routes. Enter generates one.
+
+# ── Broadcast: a screen and a speaker (optional) ─────────────────────
+JAMAI_CAST_DEVICE | ask | | Chromecast screen that jamai-cast shows pages on. Empty: name it each time with -d.
+JAMAI_CAST_PORT | quiet | 8899 | Port jamai-cast serves the page from.
+JAMAI_SAY_DEVICE | ask | | Chromecast speaker that jamai-say speaks on.
+JAMAI_SAY_VOICE | ask | fr-CA-SylvieNeural | edge-tts voice for jamai-say. `edge-tts --list-voices` shows the others.
+GMUSIC_MOMENTS | quiet | ~/.config/gmusic-routine/moments | Folder of moments read by `routine`.

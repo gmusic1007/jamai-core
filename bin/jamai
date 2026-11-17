@@ -1,0 +1,274 @@
+#!/usr/bin/env bash
+# jamai — the front door of jamai-core.
+#
+#   jamai setup [--yes]          ask each setting and write the config (--yes: no questions)
+#   jamai config show            every setting, its value and where the value comes from
+#   jamai config get NAME        one value
+#   jamai config set NAME VALUE  write one value to jamai.env (a secret goes to secrets.env)
+#   jamai config unset NAME      remove one value from the config
+#   jamai config path            where the config lives
+#   jamai doctor                 which tools are present, which are missing, and what stops working
+#   jamai tools                  the commands this package installs
+#   jamai version
+#
+# Settings are declared in `settings`, beside this folder. Nothing is asked that is not declared there.
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+SETTINGS="$ROOT/settings"
+CFG_DIR="${JAMAI_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/jamai}"
+ENV_FILE="$CFG_DIR/jamai.env"
+SECRET_FILE="$CFG_DIR/secrets.env"
+
+die() { echo "jamai: $*" >&2; exit 2; }
+trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
+expand_home() { case "$1" in '~/'*) printf '%s' "$HOME/${1#\~/}" ;; '~') printf '%s' "$HOME" ;; *) printf '%s' "$1" ;; esac; }
+
+# ── the manifest ─────────────────────────────────────────────────────
+# Fills NAMES[], and KIND[name], DEFAULT[name], ABOUT[name], GROUP[name].
+declare -a NAMES=(); declare -A KIND=() DEFAULT=() ABOUT=() GROUP=()
+read_manifest() {
+  [ -r "$SETTINGS" ] || die "no settings file at $SETTINGS"
+  local line name kind default about group=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      '# ── '*) group="${line#\# ── }"; group="${group%% ─*}"; continue ;;
+      ''|'#'*) continue ;;
+    esac
+    IFS='|' read -r name kind default about <<<"$line"
+    name="$(trim "$name")"; [ -n "$name" ] || continue
+    NAMES+=("$name"); KIND[$name]="$(trim "$kind")"; DEFAULT[$name]="$(trim "$default")"
+    ABOUT[$name]="$(trim "$about")"; GROUP[$name]="$group"
+  done < "$SETTINGS"
+}
+
+file_value() {   # file_value FILE NAME → prints the value; returns 1 when absent
+  [ -r "$1" ] || return 1
+  local l; l="$(grep -m1 -E "^$2=" "$1")" || return 1
+  printf '%s' "${l#*=}"
+}
+
+# value_of NAME → sets VALUE and SOURCE (environment | jamai.env | secrets.env | default | unset)
+value_of() {
+  local name="$1" v
+  if [ -n "${!name+x}" ]; then VALUE="${!name}"; SOURCE="environment"; return; fi
+  if v="$(file_value "$ENV_FILE" "$name")"; then VALUE="$v"; SOURCE="jamai.env"; return; fi
+  if v="$(file_value "$SECRET_FILE" "$name")"; then VALUE="$v"; SOURCE="secrets.env"; return; fi
+  v="${DEFAULT[$name]:-}"
+  if [ "${KIND[$name]:-}" = auto ] && [ "$name" = JAMAI_CORE_ROOT ]; then VALUE="$ROOT"; SOURCE="this checkout"; return; fi
+  if [ -n "$v" ] && [ "${KIND[$name]:-}" != secret ]; then VALUE="$(expand_home "$v")"; SOURCE="default"; return; fi
+  VALUE=""; SOURCE="unset"
+}
+
+is_secret() { [ "${KIND[$1]:-}" = secret ] || [[ $1 =~ (TOKEN|KEY|SECRET|PASSWORD) ]]; }
+check_value() { case "$1" in *$'\n'*|*$'\r'*) die "a value cannot hold a line break" ;; esac; }
+
+write_value() {   # write_value NAME VALUE — in place, through a temp file
+  local name="$1" value="$2" file="$ENV_FILE" tmp
+  check_value "$value"
+  is_secret "$name" && file="$SECRET_FILE"
+  mkdir -p "$CFG_DIR" || die "cannot create $CFG_DIR"
+  tmp="$(mktemp "$CFG_DIR/.tmp.XXXXXX")" || die "cannot write in $CFG_DIR"
+  [ -f "$file" ] && grep -v -E "^$name=" "$file" > "$tmp"
+  printf '%s=%s\n' "$name" "$value" >> "$tmp"
+  [ "$file" = "$SECRET_FILE" ] && chmod 600 "$tmp"
+  mv "$tmp" "$file"
+}
+
+remove_value() {
+  local name="$1" file tmp
+  for file in "$ENV_FILE" "$SECRET_FILE"; do
+    [ -f "$file" ] || continue
+    tmp="$(mktemp "$CFG_DIR/.tmp.XXXXXX")" || die "cannot write in $CFG_DIR"
+    grep -v -E "^$name=" "$file" > "$tmp"
+    [ "$file" = "$SECRET_FILE" ] && chmod 600 "$tmp"
+    mv "$tmp" "$file"
+  done
+}
+
+new_token() { python3 -c 'import secrets; print(secrets.token_urlsafe(32))' 2>/dev/null \
+              || head -c 32 /dev/urandom | base64 | tr -d '=+/\n'; }
+
+# ── setup ────────────────────────────────────────────────────────────
+cmd_setup() {
+  local yes=0 tty="" name kind current answer group="" shown
+  [ "${1:-}" = "--yes" ] && yes=1
+  read_manifest
+  if [ "$yes" -eq 0 ]; then
+    if [ -t 0 ]; then tty=/dev/stdin
+    elif { : < /dev/tty; } 2>/dev/null; then tty=/dev/tty      # piped install: curl … | bash
+    else yes=1; echo "jamai setup: no terminal to ask on, keeping current values and defaults."; fi
+  fi
+  [ "$yes" -eq 0 ] && cat <<EOF
+
+jamai setup — ${#NAMES[@]} settings are declared, the ones marked "ask" are asked now.
+Enter keeps the value in [brackets]. A single dash (-) empties a value.
+The answers go to $ENV_FILE
+EOF
+  for name in "${NAMES[@]}"; do
+    kind="${KIND[$name]}"
+    value_of "$name"; current="$VALUE"
+    case "$kind" in
+      auto)  [ "$name" = JAMAI_CORE_ROOT ] && write_value "$name" "$ROOT"; continue ;;
+      quiet) continue ;;
+    esac
+    if [ "$yes" -eq 1 ]; then
+      if [ "$kind" = secret ]; then
+        [ -n "$current" ] || { [ "${DEFAULT[$name]}" = generate ] && current="$(new_token)"; }
+        [ -n "$current" ] && write_value "$name" "$current"
+      else
+        [ -n "$current" ] && write_value "$name" "$current"
+      fi
+      continue
+    fi
+    if [ "${GROUP[$name]}" != "$group" ]; then group="${GROUP[$name]}"; printf '\n── %s\n' "$group"; fi
+    printf '\n%s\n  %s\n' "$name" "${ABOUT[$name]}"
+    if [ "$kind" = secret ]; then
+      shown="keep the one already set"; [ -n "$current" ] || shown="generate one"
+      printf '  [%s] > ' "$shown"
+      IFS= read -rs answer < "$tty" || answer=""; echo
+      if [ -z "$answer" ]; then
+        [ -n "$current" ] || { [ "${DEFAULT[$name]}" = generate ] && current="$(new_token)"; }
+        answer="$current"
+      fi
+      [ -n "$answer" ] && write_value "$name" "$answer"
+      continue
+    fi
+    printf '  [%s] > ' "$current"
+    IFS= read -r answer < "$tty" || answer=""
+    answer="$(trim "$answer")"
+    case "$answer" in
+      '') answer="$current" ;;
+      '-') remove_value "$name"; continue ;;
+    esac
+    answer="$(expand_home "$answer")"
+    [ -n "$answer" ] && write_value "$name" "$answer"
+  done
+  mkdir -p "$CFG_DIR"; [ -f "$ENV_FILE" ] || : > "$ENV_FILE"
+  echo
+  echo "jamai setup: written to $ENV_FILE"
+  [ -f "$SECRET_FILE" ] && echo "jamai setup: secrets kept in $SECRET_FILE (mode 600)"
+  return 0
+}
+
+# ── config ───────────────────────────────────────────────────────────
+cmd_config() {
+  local sub="${1:-show}" name shown group=""
+  read_manifest
+  case "$sub" in
+    path) echo "$CFG_DIR" ;;
+    show)
+      for name in "${NAMES[@]}"; do
+        if [ "${GROUP[$name]}" != "$group" ]; then group="${GROUP[$name]}"; printf '\n── %s\n' "$group"; fi
+        value_of "$name"; shown="$VALUE"
+        is_secret "$name" && [ -n "$VALUE" ] && shown="(set, hidden)"
+        printf '%-32s %-13s %s\n' "$name" "[$SOURCE]" "$shown"
+      done ;;
+    get)
+      name="${2:-}"; [ -n "$name" ] || die "usage: jamai config get NAME"
+      [ -n "${KIND[$name]+x}" ] || die "$name is not declared in $SETTINGS"
+      value_of "$name"; printf '%s\n' "$VALUE"; [ "$SOURCE" != unset ] ;;
+    set)
+      name="${2:-}"; [ $# -ge 3 ] || die "usage: jamai config set NAME VALUE"
+      [ -n "${KIND[$name]+x}" ] || die "$name is not declared in $SETTINGS"
+      write_value "$name" "$(expand_home "$3")"
+      if is_secret "$name"; then echo "$name set (in $SECRET_FILE)"; else echo "$name=$(expand_home "$3")"; fi ;;
+    unset)
+      name="${2:-}"; [ -n "$name" ] || die "usage: jamai config unset NAME"
+      remove_value "$name"; echo "$name removed from the config" ;;
+    *) die "unknown: jamai config $sub (show | get | set | unset | path)" ;;
+  esac
+}
+
+# ── doctor ───────────────────────────────────────────────────────────
+MISSING_CORE=0; MISSING_OPTIONAL=0
+installer_hint() {   # installer_hint APT_PACKAGE
+  if command -v apt-get >/dev/null 2>&1; then printf 'sudo apt install %s' "$1"
+  elif command -v brew >/dev/null 2>&1; then printf 'brew install %s' "$1"
+  else printf 'install %s' "$1"; fi
+}
+count_missing() { if [ "$1" = render ]; then MISSING_CORE=$((MISSING_CORE + 1)); else MISSING_OPTIONAL=$((MISSING_OPTIONAL + 1)); fi; }
+tool() {   # tool GROUP BINARY PACKAGE "what stops working"
+  local p
+  if p="$(command -v "$2" 2>/dev/null)"; then printf 'ok       %-8s %-13s %s\n' "$1" "$2" "$p"
+  else printf 'MISSING  %-8s %-13s %s — %s\n' "$1" "$2" "$(installer_hint "$3")" "$4"; count_missing "$1"; fi
+}
+pytool() {  # pytool GROUP MODULE PACKAGE "what stops working"
+  if python3 -c "import $2" >/dev/null 2>&1; then printf 'ok       %-8s %-13s python3 module\n' "$1" "$2"
+  else printf 'MISSING  %-8s %-13s %s — %s\n' "$1" "$2" "$(installer_hint "$3")" "$4"; count_missing "$1"; fi
+}
+piptool() { # piptool GROUP BINARY PIP_NAME "what stops working"
+  local p
+  if p="$(command -v "$2" 2>/dev/null)"; then printf 'ok       %-8s %-13s %s\n' "$1" "$2" "$p"
+  else printf 'MISSING  %-8s %-13s pipx install %s — %s\n' "$1" "$2" "$3" "$4"; count_missing "$1"; fi
+}
+
+cmd_doctor() {
+  . "$ROOT/lib/jamai-env.sh"
+  echo "jamai doctor — jamai-core $(cat "$ROOT/VERSION" 2>/dev/null) at $ROOT"
+  echo
+  tool    render  abc2midi     abcmidi        "no ABC becomes MIDI, so nothing renders"
+  tool    render  fluidsynth   fluidsynth     "no audio is rendered"
+  tool    render  lame         lame           "no MP3 is written"
+  tool    render  ffprobe      ffmpeg         "a render cannot be checked for length"
+  tool    render  jq           jq             "the melody manifest cannot be written"
+  tool    render  iconv        libc-bin       "a title cannot become a slug"
+  if [ -r "${JAMAI_SOUNDFONT:-}" ]; then printf 'ok       %-8s %-13s %s\n' render soundfont "$JAMAI_SOUNDFONT"
+  else printf 'MISSING  %-8s %-13s %s — JAMAI_SOUNDFONT=%s is not readable\n' render soundfont "$(installer_hint fluid-soundfont-gm)" "${JAMAI_SOUNDFONT:-}"; count_missing render; fi
+  tool    score   abcm2ps      abcm2ps        "no engraved score (melodies still publish)"
+  tool    score   rsvg-convert librsvg2-bin   "no PNG of a score"
+  tool    video   ffmpeg       ffmpeg         "no score video"
+  tool    video   convert      imagemagick    "no score video"
+  tool    measure python3      python3        "none of the listen/ and render/ tools run"
+  pytool  measure numpy        python3-numpy  "jamai-measure, jamai-chords-audio and jamai-scroll stop"
+  pytool  measure scipy        python3-scipy  "jamai-measure stops"
+  pytool  measure PIL          python3-pil    "jamai-tab, jamai-scroll and jamai-score-video stop"
+  piptool cast    catt         catt           "jamai-cast and jamai-say cannot reach a screen or a speaker"
+  piptool say     edge-tts     edge-tts       "jamai-say has no voice"
+  echo
+  local bin="${JAMAI_BIN:-$HOME/.local/bin}"
+  case ":$PATH:" in *":$bin:"*) echo "ok       path     $bin is on your PATH" ;;
+    *) echo "note     path     $bin is not on your PATH: add it to your shell profile" ;; esac
+  [ -f "$ENV_FILE" ] && echo "ok       config   $ENV_FILE" || echo "note     config   no $ENV_FILE yet: run 'jamai setup'"
+  echo
+  if [ "$MISSING_CORE" -eq 0 ]; then echo "Render chain: whole. You can render and publish a melody."
+  else echo "Render chain: $MISSING_CORE piece(s) missing. Nothing can be published until they are installed."; fi
+  [ "$MISSING_OPTIONAL" -eq 0 ] || echo "Optional: $MISSING_OPTIONAL piece(s) missing. Each line above says what it stops."
+  [ "$MISSING_CORE" -eq 0 ]
+}
+
+# ── tools ────────────────────────────────────────────────────────────
+cmd_tools() {
+  cat <<'EOF'
+listen/     jamai-midi.py           MIDI to a note-by-note listing and ABC
+            jamai-chords.py         the chord sounding on each beat of a MIDI file
+            jamai-chords-audio.py   chords and key from a recording
+            jamai-measure.py        tempo, structure, pitch and timbre of a recording
+            jamai-grille.py         measure the bar grid before writing the score
+render/     jamai-render            ABC to MIDI, WAV, MP3 and an engraved score
+            jamai-tab.py            six-line guitar tablature from ABC
+            jamai-score-video.py    score video, one system at a time
+            jamai-scroll.py         score video scrolling left to right under a red playhead
+publish/    jamai-publish-melody    render an ABC melody and add it to the melody page
+            jamai-hub               the service: melody page, subscriptions, webhook delivery
+workshop/   jamai-unread.py         recorder drops nobody has worked on yet
+            jamai-related.py        units that already speak of the same thing
+            jamai-follow-fork       follow a Claude session read-only
+broadcast/  jamai-cast              an HTML page on a Chromecast screen
+            jamai-say               a spoken sentence on a Chromecast speaker
+moments/    routine                 a named moment of the house: its screen, speaker and posture
+mcp/        jamai-mcp               the same tools as an MCP server for an agent
+EOF
+}
+
+case "${1:-}" in
+  setup)   shift; cmd_setup "$@" ;;
+  config)  shift; cmd_config "$@" ;;
+  doctor)  shift; cmd_doctor "$@" ;;
+  tools)   cmd_tools ;;
+  version|--version|-V) echo "jamai-core $(cat "$ROOT/VERSION" 2>/dev/null || echo unknown)" ;;
+  hub)     shift; exec "$ROOT/publish/jamai-hub" "$@" ;;
+  mcp)     shift; exec "$ROOT/mcp/jamai-mcp" "$@" ;;
+  ''|-h|--help|help) sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed -e 's/^# \{0,1\}//' -e '/^set -uo/d' ;;
+  *) die "unknown command: $1 (try: jamai help)" ;;
+esac

@@ -26,6 +26,10 @@
 
 set -uo pipefail
 
+# Settings: the environment first, then ~/.config/jamai/jamai.env, then the defaults in `settings`.
+_here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+[ -r "$_here/../lib/jamai-env.sh" ] && . "$_here/../lib/jamai-env.sh"
+
 DEVICE="${JAMAI_CAST_DEVICE:-}"
 PORT="${JAMAI_CAST_PORT:-8899}"
 if [ -z "$DEVICE" ]; then
