@@ -21,8 +21,8 @@ links the commands into `~/.local/bin`. Then `jamai doctor` names any system pro
 **With apt** (Debian, Ubuntu): the package brings the system programs too.
 
 ```bash
-curl -fsSLO https://github.com/gmusic1007/jamai-core/releases/download/v0.3.0/jamai-core_0.3.0_all.deb
-sudo apt install ./jamai-core_0.3.0_all.deb
+curl -fsSLO https://github.com/gmusic1007/jamai-core/releases/download/v0.3.1/jamai-core_0.3.1_all.deb
+sudo apt install ./jamai-core_0.3.1_all.deb
 jamai setup
 ```
 
@@ -103,7 +103,7 @@ folder each time.
 `install.sh` puts a MuseScore plugin in MuseScore's plugins folder when MuseScore is installed
 (`jamai-musescore --install-plugin` does it by hand). In MuseScore, once: **Home → Plugins**, enable
 **musescore-mcp-websocket**. Each session: open a score and start the plugin from the **Plugins** menu. From then on, an agent with
-`jamai-mcp` adds notes, rests, lyrics, measures and instruments, or changes the tempo, in the score open
+`jamai-mcp` adds notes, rests, lyrics, dynamics, measures and instruments, or changes the tempo, in the score open
 on your screen, and MuseScore's undo reverses each change. From a terminal:
 
 ```bash

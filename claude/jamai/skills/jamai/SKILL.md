@@ -39,7 +39,7 @@ package that brings it, and what stops working without it.
 | "a video of the score" | `jamai-scroll.py` (scrolls left to right, red playhead) or `jamai-score-video.py` (one system at a time) |
 | "what did we write before?" | `jamai-legacy list <folder>` |
 | "open it in MuseScore" | `jamai-musescore file.abc` (`--no-open` to convert only) |
-| "change it in MuseScore while I watch" | `musescore_live_status`, then `musescore_live` (or `jamai-musescore --live <action>`) |
+| "change it in MuseScore while I watch", "forte on that note" | `musescore_live_status`, then `musescore_live` (or `jamai-musescore --live <action>`) |
 | "publish it" | `jamai-publish-melody` |
 | "who receives my music?" | `jamai-hub subscriptions` |
 
