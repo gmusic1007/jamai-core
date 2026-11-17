@@ -19,7 +19,7 @@ that exists only as a menu item or a panel stays **in MuseScore**.
 | page | how |
 |---|---|
 | Download and installation | **in MuseScore**. `jamai doctor` says whether MuseScore is installed, and `install.sh` puts the plugin in place |
-| Create your first score | **live** `newScore {title, instrument, measures}`, then `setScoreText`, `addInstrument` |
+| Create your first score | **in MuseScore** (File → New), then start the plugin in that score's window. `newScore` creates a score, but MuseScore 4 opens it in a window the plugin does not reach |
 | Upgrading from earlier versions | nothing to do |
 | Accessibility, The user interface, Timeline, Braille | **in MuseScore** |
 | Navigating your score | **live** `goToMeasure`, `goToBeginningOfScore`, `goToFinalMeasure`, `nextElement`, `prevElement`, `nextStaff`, `prevStaff`, `getCursorInfo` |
@@ -28,7 +28,7 @@ that exists only as a menu item or a panel stays **in MuseScore**.
 
 | page | how |
 |---|---|
-| Setting up your score | **live** `newScore`, `setScoreText` (title, subtitle, composer, lyricist), `addInstrument`, `setTimeSignature`, `addElement keySignature`, `addElement tempo` |
+| Setting up your score | **live** `setScoreText` (title, subtitle, composer, lyricist), `addInstrument`, `setTimeSignature`, `addElement keySignature`, `addElement tempo` |
 | Entering notes and rests | **live** `addNote`, `addRest`. **jamai**: write ABC, then `jamai-musescore` opens it |
 | Working with multiple voices | **not yet** |
 | Input by duration mode, Alternative note input methods | **in MuseScore** (a MIDI keyboard, the mouse). An agent enters notes by action instead |
@@ -102,7 +102,7 @@ that exists only as a menu item or a panel stays **in MuseScore**.
 
 | page | how |
 |---|---|
-| Opening and saving scores | **live** `openScore {path}`, `saveScore {path}` (.mscz, .musicxml, .pdf, .png, .svg, .mid) |
+| Opening and saving scores | **live** `saveScore {path}` (.mscz, .musicxml, .pdf, .png, .svg, .mid). `openScore` opens the file in a new MuseScore window, which the plugin does not reach |
 | Convert a file, File export, Working with MusicXML | **export**: mscz, mscx, pdf, png, svg, mid, musicxml, mxl, mei, mp3, flac, ogg, wav, aac. Braille (brf) fails in MuseScore 4.7.7's converter |
 | Project properties | **export** `--meta` reads them as JSON |
 | Backup and recovered files | **in MuseScore** |

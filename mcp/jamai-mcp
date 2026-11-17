@@ -265,7 +265,8 @@ TOOLS = [
      "fingering {text, note?}, tempo {bpm, text?}, keySignature {fifths -7..7}, layoutBreak (line, page, section), "
      "arpeggio, hairpin (crescendo, decrescendo, cresc-line, dim-line; beats), ottava (8va, 8vb, 15ma, 15mb; beats); "
      "setScoreText {field: title, subtitle, composer, lyricist, part; text}; newScore {title, instrument, measures}; "
-     "openScore {path}; saveScore {path: .mscz, .musicxml, .pdf, .png, .svg, .mid}; addInstrument {instrumentId}; setStaffMute {staff, mute}; setInstrumentSound {staff, "
+     "openScore {path} (MuseScore 4 opens it in another window, which this plugin does not reach: to work on it, the "
+     "person starts the plugin there); saveScore {path: .mscz, .musicxml, .pdf, .png, .svg, .mid}; addInstrument {instrumentId}; setStaffMute {staff, mute}; setInstrumentSound {staff, "
      "instrumentId}; processSequence {sequence: [{action, params}, ...]}. No params: version, getCursorInfo, undo, "
      "goToBeginningOfScore, goToFinalMeasure, nextElement, prevElement, nextStaff, prevStaff, selectCurrentMeasure, "
      "insertMeasure, deleteSelection, syncStateToSelection.",

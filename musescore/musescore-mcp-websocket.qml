@@ -200,7 +200,7 @@ MuseScore {
         score.addText("title", title);
         score.endCmd();
         return { success: true, title: title, instrument: instrument, measures: score.nmeasures,
-                 note: "the new score opens in its own tab; the other actions change the score in the active tab" };
+                 note: "MuseScore 4 opens it in a window of its own, which this plugin does not reach: the other actions keep changing the score of the window the plugin was started in" };
     }
 
     // Open a file (mscz, musicxml, mid…) in MuseScore.
@@ -209,7 +209,7 @@ MuseScore {
         if (!validation.valid) return validation;
         var score = readScore(String(params.path), false);
         if (!score) return { error: "MuseScore could not open " + params.path };
-        return { success: true, path: params.path, measures: score.nmeasures };
+        return { success: true, path: params.path, note: "MuseScore 4 opens it in a window of its own, which this plugin does not reach: the other actions keep changing the score of the window the plugin was started in" };
     }
 
     // Save or export the active score. The format follows the extension: mscz, mscx, musicxml, mxl, pdf, png, svg, mid.

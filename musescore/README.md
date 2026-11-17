@@ -16,6 +16,15 @@ note of a flute part in MuseScore 4.7.7. The plugin now stays on the element it 
 Two actions added here, also marked `jamai-core:`: `addDynamic`, for dynamic markings, and `version`,
 which tells this copy from an older one still running in MuseScore.
 
+## One window per score
+
+MuseScore 4 runs each score in its own window, and each window is its own program. The plugin
+changes the score of the window where it was started, and only that one. Found on 2026-11-17 with
+MuseScore 4.7.7: `newScore` and `openScore` opened their score in a new window, File → New did the
+same, and the plugin went on seeing the first score. To work on another score, start the plugin in
+that score's window. Only one window can hold the plugin's port (8765) at a time, so close the
+window where it runs first.
+
 ## Starting it
 
 ```bash
