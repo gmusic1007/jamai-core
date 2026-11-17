@@ -134,7 +134,7 @@ LIVE_ACTIONS = ["ping", "getScore", "getCursorInfo", "undo", "goToBeginningOfSco
                 "goToMeasure", "nextElement", "prevElement", "nextStaff", "prevStaff", "selectCurrentMeasure",
                 "selectCustomRange", "syncStateToSelection", "addNote", "addRest", "addTuplet", "addLyrics",
                 "appendMeasure", "insertMeasure", "deleteSelection", "setTimeSignature", "setTempo",
-                "addInstrument", "setStaffMute", "setInstrumentSound", "processSequence"]
+                "addInstrument", "setStaffMute", "setInstrumentSound", "processSequence", "addDynamic", "version"]
 _LIVE = {"client": None}
 
 
@@ -236,8 +236,8 @@ TOOLS = [
      "advanceCursorAfterAction}; addRest {duration, advanceCursorAfterAction}; addTuplet {duration, ratio, "
      "advanceCursorAfterAction}; addLyrics {lyrics: [syllables], verse}; goToMeasure {measure}; appendMeasure {count}; "
      "selectCustomRange {startTick, endTick, startStaff, endStaff}; setTimeSignature {numerator, denominator}; "
-     "setTempo {bpm}; addInstrument {instrumentId}; setStaffMute {staff, mute}; setInstrumentSound {staff, "
-     "instrumentId}; processSequence {sequence: [{action, params}, ...]}. No params: getCursorInfo, undo, "
+     "setTempo {bpm}; addDynamic {dynamic: pppp…ffff, mp, mf, fp, sf, sfz, sff, sffz, sfp, sfpp, rf, rfz, fz} on the element at the cursor; addInstrument {instrumentId}; setStaffMute {staff, mute}; setInstrumentSound {staff, "
+     "instrumentId}; processSequence {sequence: [{action, params}, ...]}. No params: version, getCursorInfo, undo, "
      "goToBeginningOfScore, goToFinalMeasure, nextElement, prevElement, nextStaff, prevStaff, selectCurrentMeasure, "
      "insertMeasure, deleteSelection, syncStateToSelection.",
      schema({"action": {"type": "string", "enum": LIVE_ACTIONS},

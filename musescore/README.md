@@ -13,6 +13,9 @@ with `advanceCursorAfterAction` failed on the last element of a score: the curso
 the plugin threw "Value is null" and MuseScore undid the note. Found on 2026-11-17, writing the last
 note of a flute part in MuseScore 4.7.7. The plugin now stays on the element it just wrote.
 
+Two actions added here, also marked `jamai-core:`: `addDynamic`, for dynamic markings, and `version`,
+which tells this copy from an older one still running in MuseScore.
+
 ## Starting it
 
 ```bash
@@ -48,6 +51,8 @@ jamai-musescore --live getScore
 | `selectCustomRange` | `startTick`, `endTick`, `startStaff`, `endStaff` |
 | `setTimeSignature` | `numerator`, `denominator` |
 | `setTempo` | `bpm` |
+| `addDynamic` | `dynamic`: `pppp` to `ffff`, `mp`, `mf`, `fp`, `pf`, `sf`, `sfz`, `sff`, `sffz`, `sfp`, `sfpp`, `rf`, `rfz`, `fz`, on the element at the cursor |
+| `version` | none: answers which copy of the plugin is running |
 | `addInstrument` | `instrumentId` |
 | `setStaffMute` | `staff`, `mute` |
 | `setInstrumentSound` | `staff`, `instrumentId` |

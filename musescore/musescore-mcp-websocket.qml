@@ -37,6 +37,55 @@ MuseScore {
         }
     }
 
+    // jamai-core: the plugin's own version, so a client can tell this copy from an older one.
+    function pluginVersion() {
+        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.3.1",
+                 actions: ["addDynamic", "version"] };
+    }
+
+    // jamai-core: a dynamic marking (f, mf, pp, sfz…) on the element at the cursor.
+    function addDynamic(params) {
+        var validation = validateParams(params, ["dynamic"]);
+        if (!validation.valid) return validation;
+        var name = String(params.dynamic);
+        var allowed = ["pppp", "ppp", "pp", "p", "mp", "mf", "f", "ff", "fff", "ffff",
+                       "fp", "pf", "sf", "sfz", "sff", "sffz", "sfp", "sfpp", "rf", "rfz", "fz"];
+        if (allowed.indexOf(name) < 0) return { error: "dynamic must be one of: " + allowed.join(", ") };
+
+        return executeWithUndo(function() {
+            syncStateToSelection();
+            var cursor = createCursor();
+            if (!cursor.element) throw new Error("No element at the cursor");
+            var glyph = { p: "dynamicPiano", m: "dynamicMezzo", f: "dynamicForte",
+                          s: "dynamicSforzando", z: "dynamicZ", r: "dynamicRinforzando" };
+            var text = "";
+            for (var i = 0; i < name.length; i++) text += "<sym>" + glyph[name.charAt(i)] + "</sym>";
+
+            var dyn = newElement(Element.DYNAMIC);
+            dyn.text = text;
+            // The type is what playback follows. Set it when this MuseScore exposes it.
+            var typed = false;
+            try {
+                if (typeof DynamicType !== "undefined" && DynamicType[name.toUpperCase()] !== undefined) {
+                    dyn.dynamicType = DynamicType[name.toUpperCase()];
+                    typed = true;
+                }
+            } catch (e) {}
+            cursor.add(dyn);
+
+            // Read back what is now attached at this point of the score, as proof.
+            var attached = [];
+            try {
+                var anns = cursor.segment.annotations;
+                for (var j = 0; j < anns.length; j++) {
+                    if (anns[j].track === cursor.track) attached.push({ name: anns[j].name, text: anns[j].text });
+                }
+            } catch (e2) {}
+            return { success: true, dynamic: name, tick: cursor.tick, staff: cursor.staffIdx,
+                     dynamicTypeSet: typed, attachedHere: attached };
+        });
+    }
+
     function processCommand(command) {
         console.log("Processing command: " + command.action);
         
@@ -79,6 +128,8 @@ MuseScore {
             case "setInstrumentSound":      return setInstrumentSound(command.params);
             case "setTimeSignature":        return setTimeSignature(command.params);
             case "setTempo":                return setTempo(command.params);
+            case "addDynamic":              return addDynamic(command.params);
+            case "version":                 return pluginVersion();
 
             default:
                 throw new Error("Unknown command: " + command.action);
@@ -273,7 +324,7 @@ MuseScore {
             "getCursorInfo", "goToMeasure", "nextElement", "prevElement", "nextStaff", "prevStaff",
             "selectCurrentMeasure", "processSequence", "insertMeasure", "goToFinalMeasure",
             "goToBeginningOfScore", "setTimeSignature", "addLyrics", "addInstrument",    
-            "setStaffMute", "setInstrumentSound", "setTempo"
+            "setStaffMute", "setInstrumentSound", "setTempo", "addDynamic"
         ];
 
         try {

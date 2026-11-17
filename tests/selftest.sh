@@ -259,6 +259,7 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"musescore_live_status","arguments":{}}}' \
   '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"setTempo","params":{"bpm":72}}}}' \
   '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"rm"}}}' \
+  '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"addDynamic","params":{"dynamic":"f"}}}}' \
   | jamai-mcp > "$T/mcp.out" 2> "$T/mcp.err"
 check "mcp answers initialize" bash -c "sed -n 1p '$T/mcp.out' | jq -e '.result.serverInfo.name == \"jamai-core\"'"
 check "mcp lists 14 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 14'"
@@ -267,9 +268,11 @@ check "mcp names chords from a MIDI file" bash -c "sed -n 4p '$T/mcp.out' | jq -
 check "mcp refuses an unknown tool" bash -c "sed -n 5p '$T/mcp.out' | jq -e '.error.code == -32601'"
 check "mcp lists the legacy sessions" bash -c "sed -n 6p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"Old Session Theme\"))'"
 check "mcp finds MuseScore listening" bash -c "sed -n 7p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"MuseScore is listening\"))'"
-check "mcp changes the tempo in the open score" bash -c "sed -n 8p '$T/mcp.out' | jq -e '.result.isError == false' >/dev/null && tail -n1 '$T/live.log' | jq -e '.action == \"setTempo\" and .params.bpm == 72'"
+check "mcp changes the tempo in the open score" bash -c "sed -n 8p '$T/mcp.out' | jq -e '.result.isError == false' >/dev/null && jq -s -e 'map(select(.action == \"setTempo\" and .params.bpm == 72)) | length == 1' '$T/live.log'"
 check "mcp refuses an action MuseScore does not know" bash -c "sed -n 9p '$T/mcp.out' | jq -e '.result.isError == true'"
-check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 9
+check "mcp sends a forte to the open score" bash -c "sed -n 10p '$T/mcp.out' | jq -e '.result.isError == false' >/dev/null && tail -n1 '$T/live.log' | jq -e '.action == \"addDynamic\" and .params.dynamic == \"f\"'"
+check "the plugin answers every action the agent tool offers" bash -c "for a in \$(python3 -c \"import re; s=open('$ROOT/mcp/jamai-mcp').read(); print(' '.join(re.findall(r'\\\"([a-zA-Z]+)\\\"', s[s.index('LIVE_ACTIONS = ['):s.index(']', s.index('LIVE_ACTIONS = ['))])))\"); do grep -q \"case \\\"\$a\\\":\" '$ROOT/musescore/musescore-mcp-websocket.qml' || { echo missing \$a; exit 1; }; done"
+check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 10
 
 echo "── package"
 check "no house value in the packaged code" bash -c "! grep -rIn -E '/home/gmusic|gmusicassembly\.com|ferret-harmonic|tail3b11eb|192\.168\.[0-9]+\.[0-9]+' '$ROOT/bin' '$ROOT/lib' '$ROOT/publish' '$ROOT/render' '$ROOT/mcp' '$ROOT/listen' '$ROOT/workshop' '$ROOT/broadcast' '$ROOT/moments' '$ROOT/install.sh' '$ROOT/settings' '$ROOT/claude'"
