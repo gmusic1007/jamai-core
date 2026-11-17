@@ -8,8 +8,8 @@
 # What it proves: the installer links every command and writes the settings; a melody renders
 # and publishes with no house address in the result; the right fact is announced (published,
 # unchanged, revised); the hub accepts a subscription by invite only, delivers one signed
-# POST per fact, refuses private targets, serves the page and byte ranges; the MCP server
-# lists and runs its tools.
+# POST per fact, refuses private targets, serves the page and byte ranges; a legacy ABC
+# session is listed, converted for MuseScore and published; the MCP server lists and runs its tools.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
@@ -31,6 +31,8 @@ export PATH="$T/bin:$PATH"
 pass=0; fail=0
 ok()   { pass=$((pass + 1)); printf 'ok    %s\n' "$1"; }
 bad()  { fail=$((fail + 1)); printf 'FAIL  %s\n' "$1"; [ -n "${2:-}" ] && printf '      %s\n' "$2"; }
+skipped=0
+skip() { skipped=$((skipped + 1)); printf 'skip  %s\n' "$1"; }
 check(){ local what="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$what"; else bad "$what" "command: $*"; fi; }
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'; }
 wait_for() { local i; for i in $(seq 1 "${2:-50}"); do eval "$1" >/dev/null 2>&1 && return 0; sleep 0.2; done; return 1; }
@@ -161,6 +163,32 @@ check "a private LAN target is refused" test "$(code '{"url":"https://192.168.1.
 check "a plain http target is refused" test "$(code '{"url":"http://93.184.216.34/hook"}')" = 400
 check "an unknown event type is refused" test "$(code '{"url":"https://93.184.216.34/hook","events":["everything"]}')" = 400
 
+echo "── legacy sessions and MuseScore"
+mkdir -p "$T/legacy/2025/notes" "$T/legacy/node_modules/x"
+printf 'An older session. Free text sits above the tune, as in the real files.\n\n%% a comment\nX:1\nT:Old Session Theme\nC:an earlier agent\nM:6/8\nL:1/8\nQ:3/8=80\nK:Am\n|: A2 c e2 c | d2 B G2 B | A2 c e2 a | g3 e3 | f2 d B2 d | e2 c A2 c | B2 G E2 G | A6 :|\n' > "$T/legacy/2025/251017_old_session.abc"
+printf 'not a tune\n' > "$T/legacy/2025/notes/empty.abc"
+printf 'X:1\nT:Vendored\nK:C\nCDEF|\n' > "$T/legacy/node_modules/x/vendored.abc"
+jamai-legacy list "$T/legacy" > "$T/legacy.out" 2>&1
+check "jamai-legacy finds the session" grep -q 'Old Session Theme' "$T/legacy.out"
+check "it reads the date from the file name" grep -q '^2025-10-17 ' "$T/legacy.out"
+check "it leaves out vendored folders and files with no tune" grep -q '^1 session(s)$' "$T/legacy.out"
+check "its JSON is valid" bash -c "jamai-legacy list --json '$T/legacy' | jq -e '.[0].key == \"Am\" and .[0].meter == \"6/8\"'"
+jamai config set JAMAI_LEGACY_DIRS "$T/legacy" >/dev/null
+check "JAMAI_LEGACY_DIRS is used when no folder is named" bash -c "jamai-legacy list | grep -q 'Old Session Theme'"
+ms_bin=""; for c in musescore4 mscore4 mscore musescore musescore3 mscore3; do command -v "$c" >/dev/null 2>&1 && { ms_bin="$c"; break; }; done
+if [ -n "$ms_bin" ]; then
+  jamai-musescore --no-open --out "$T/ms" "$T/legacy/2025/251017_old_session.abc" > "$T/musescore.out" 2>&1
+  check "jamai-musescore converts the session (with $ms_bin)" test "$?" -eq 0
+  check "the MusicXML holds notes" grep -q '<note' "$T/ms/251017_old_session.musicxml"
+  check "nothing was opened" grep -q 'opened.*no (--no-open)' "$T/musescore.out"
+else
+  skip "jamai-musescore: MuseScore is not installed on this machine (3 checks)"
+  check "without MuseScore it says so and exits 3" bash -c "jamai-musescore --no-open '$T/legacy/2025/251017_old_session.abc' 2>&1 | grep -q 'MuseScore is not installed'; test \${PIPESTATUS[0]} -eq 3"
+fi
+jamai-publish-melody "$T/legacy/2025/251017_old_session.abc" > "$T/publish-legacy.log" 2>&1
+check "the legacy session publishes" grep -q 'https://music.example.org/melody/old-session-theme.mp3' "$T/publish-legacy.log"
+check "and is announced as a new melody" test "$(tail -n1 "$T/state/events/ledger.jsonl" | jq -r '.type + " " + .slug')" = "melody.published old-session-theme"
+
 echo "── mcp"
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"selftest","version":"0"}}}' \
@@ -169,13 +197,15 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"jamai_list_melodies","arguments":{}}}' \
   '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"jamai_chords","arguments":{"midi_path":"'"$T/site/melody/second-light.mid"'","beats_per_bar":3}}}' \
   '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"no_such_tool","arguments":{}}}' \
+  '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"jamai_legacy_list","arguments":{}}}' \
   | jamai-mcp > "$T/mcp.out" 2> "$T/mcp.err"
 check "mcp answers initialize" bash -c "sed -n 1p '$T/mcp.out' | jq -e '.result.serverInfo.name == \"jamai-core\"'"
-check "mcp lists 9 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 9'"
+check "mcp lists 11 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 11'"
 check "mcp lists the melodies" bash -c "sed -n 3p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"second-light\"))'"
 check "mcp names chords from a MIDI file" bash -c "sed -n 4p '$T/mcp.out' | jq -e '.result.isError == false'"
 check "mcp refuses an unknown tool" bash -c "sed -n 5p '$T/mcp.out' | jq -e '.error.code == -32601'"
-check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 5
+check "mcp lists the legacy sessions" bash -c "sed -n 6p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"Old Session Theme\"))'"
+check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 6
 
 echo "── package"
 check "no house value in the packaged code" bash -c "! grep -rIn -E '/home/gmusic|gmusicassembly\.com|ferret-harmonic|tail3b11eb|192\.168\.[0-9]+\.[0-9]+' '$ROOT/bin' '$ROOT/lib' '$ROOT/publish' '$ROOT/render' '$ROOT/mcp' '$ROOT/listen' '$ROOT/workshop' '$ROOT/broadcast' '$ROOT/moments' '$ROOT/install.sh' '$ROOT/settings' '$ROOT/claude'"
@@ -185,6 +215,6 @@ check "uninstall removes every link" test "$(find "$T/bin" -maxdepth 1 -type l |
 check "uninstall keeps the config" test -s "$T/config/jamai.env"
 
 echo
-echo "$pass passed, $fail failed"
+echo "$pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ] && echo "Whole. Install with: ./install.sh"
 [ "$fail" -eq 0 ]

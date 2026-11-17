@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# jamai-musescore — open a melody in MuseScore as a score you can edit.
+#
+#   jamai-musescore <file.abc | file.mid | file.musicxml>
+#   jamai-musescore --no-open --out DIR <file.abc>      convert only, open nothing
+#
+# ABC reaches MuseScore through MIDI: abc2midi writes the MIDI file, then MuseScore's own
+# converter writes MusicXML from it, and MuseScore opens that. No program beyond MuseScore
+# and abc2midi is needed.
+#
+# What the MIDI road loses: chord symbols, lyrics, voice names, and the spelling of
+# accidentals (MuseScore chooses sharps or flats again). The notes, rhythm, tempo, key and
+# instruments come through.
+#
+# MuseScore is found on the PATH (musescore4, mscore4, mscore, musescore, musescore3, mscore3),
+# or named in JAMAI_MUSESCORE_BIN. Files are written to --out, default
+# $JAMAI_STATE_DIR/musescore/<name>-<digest of the path>. The last lines printed are the files,
+# as `kind<TAB>path`.
+set -euo pipefail
+
+_here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+[ -r "$_here/../lib/jamai-env.sh" ] && . "$_here/../lib/jamai-env.sh"
+STATE_DIR="${JAMAI_STATE_DIR:-$HOME/.local/state/jamai}"
+
+out=""; open=1; positional=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --out) out="$2"; shift 2 ;;
+    --no-open) open=0; shift ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set -euo/d'; exit 0 ;;
+    *) positional+=("$1"); shift ;;
+  esac
+done
+[[ ${#positional[@]} -eq 1 ]] || { echo "usage: jamai-musescore [--no-open] [--out DIR] <file.abc|.mid|.musicxml>" >&2; exit 2; }
+src="${positional[0]}"
+[[ -r "$src" ]] || { echo "jamai-musescore: cannot read $src" >&2; exit 2; }
+
+bin="${JAMAI_MUSESCORE_BIN:-}"
+if [[ -z "$bin" ]]; then
+  for candidate in musescore4 mscore4 mscore musescore musescore3 mscore3; do
+    if command -v "$candidate" >/dev/null 2>&1; then bin="$candidate"; break; fi
+  done
+fi
+[[ -n "$bin" ]] && command -v "$bin" >/dev/null 2>&1 \
+  || { echo "jamai-musescore: MuseScore is not installed, or JAMAI_MUSESCORE_BIN does not name it" >&2; exit 3; }
+
+base="$(basename "$src")"; ext="${base##*.}"; name="${base%.*}"
+ext="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
+# Two sessions in different folders can share a file name: the folder name carries a short
+# digest of the full path, so one never overwrites the other.
+[[ -n "$out" ]] || out="$STATE_DIR/musescore/$name-$(printf '%s' "$(readlink -f "$src")" | sha256sum | cut -c1-8)"
+mkdir -p "$out"
+
+mid=""; xml=""
+case "$ext" in
+  abc)
+    command -v abc2midi >/dev/null || { echo "jamai-musescore: missing tool: abc2midi (run: jamai doctor)" >&2; exit 3; }
+    # Blank lines end a tune in ABC: strip them or the conversion stops early.
+    awk 'NF' "$src" > "$out/$name.abc"
+    mid="$out/$name.mid"
+    abc2midi "$out/$name.abc" -o "$mid" > "$out/abc2midi.log" 2>&1 \
+      || { echo "jamai-musescore: abc2midi failed:" >&2; cat "$out/abc2midi.log" >&2; exit 4; }
+    [[ -s "$mid" ]] || { echo "jamai-musescore: abc2midi wrote no MIDI. Its message:" >&2; cat "$out/abc2midi.log" >&2; exit 4; } ;;
+  mid|midi) mid="$src" ;;
+  musicxml|xml|mxl|mscz) xml="$src" ;;
+  *) echo "jamai-musescore: give an .abc, .mid or .musicxml file" >&2; exit 2 ;;
+esac
+
+if [[ -z "$xml" ]]; then
+  xml="$out/$name.musicxml"
+  rm -f "$xml"
+  # The converter needs no screen: it runs offscreen even on a machine with none.
+  QT_QPA_PLATFORM=offscreen timeout 180 "$bin" -o "$xml" "$mid" > "$out/musescore-convert.log" 2>&1 || true
+  [[ -s "$xml" ]] || { echo "jamai-musescore: $bin wrote no MusicXML. Last lines of its log:" >&2
+                       tail -5 "$out/musescore-convert.log" >&2; exit 4; }
+fi
+
+opened="no (--no-open)"
+if [[ "$open" -eq 1 ]]; then
+  if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+    setsid "$bin" "$xml" > /dev/null 2>&1 < /dev/null &
+    opened="yes, with $bin"
+  else
+    opened="no (this session has no screen: open the file from MuseScore's File menu)"
+  fi
+fi
+
+[[ -n "$mid" ]] && printf 'mid\t%s\n' "$mid"
+printf 'musicxml\t%s\n' "$xml"
+printf 'opened\t%s\n' "$opened"

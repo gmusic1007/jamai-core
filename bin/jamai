@@ -225,6 +225,10 @@ cmd_doctor() {
   pytool  measure PIL          python3-pil    "jamai-tab, jamai-scroll and jamai-score-video stop"
   piptool cast    catt         catt           "jamai-cast and jamai-say cannot reach a screen or a speaker"
   piptool say     edge-tts     edge-tts       "jamai-say has no voice"
+  local ms="${JAMAI_MUSESCORE_BIN:-}" c
+  if [ -z "$ms" ]; then for c in musescore4 mscore4 mscore musescore musescore3 mscore3; do command -v "$c" >/dev/null 2>&1 && { ms="$c"; break; }; done; fi
+  if [ -n "$ms" ] && command -v "$ms" >/dev/null 2>&1; then printf 'ok       %-8s %-13s %s\n' score musescore "$(command -v "$ms")"
+  else printf 'MISSING  %-8s %-13s %s — %s\n' score musescore "install MuseScore from musescore.org" "jamai-musescore cannot open a melody as a score"; count_missing score; fi
   echo
   local bin="${JAMAI_BIN:-$HOME/.local/bin}"
   case ":$PATH:" in *":$bin:"*) echo "ok       path     $bin is on your PATH" ;;
@@ -246,6 +250,7 @@ listen/     jamai-midi.py           MIDI to a note-by-note listing and ABC
             jamai-measure.py        tempo, structure, pitch and timbre of a recording
             jamai-grille.py         measure the bar grid before writing the score
 render/     jamai-render            ABC to MIDI, WAV, MP3 and an engraved score
+            jamai-musescore         open a melody in MuseScore as an editable score
             jamai-tab.py            six-line guitar tablature from ABC
             jamai-score-video.py    score video, one system at a time
             jamai-scroll.py         score video scrolling left to right under a red playhead
@@ -254,6 +259,7 @@ publish/    jamai-publish-melody    render an ABC melody and add it to the melod
 workshop/   jamai-unread.py         recorder drops nobody has worked on yet
             jamai-related.py        units that already speak of the same thing
             jamai-follow-fork       follow a Claude session read-only
+            jamai-legacy            ABC sessions written before the package, ready to open or publish
 broadcast/  jamai-cast              an HTML page on a Chromecast screen
             jamai-say               a spoken sentence on a Chromecast speaker
 moments/    routine                 a named moment of the house: its screen, speaker and posture

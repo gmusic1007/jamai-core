@@ -37,6 +37,8 @@ package that brings it, and what stops working without it.
 | "write it down in bars" | `jamai-grille.py`, before writing the score |
 | "with the tablature" | `jamai-tab.py file.abc --voix 1 --out tab.png` |
 | "a video of the score" | `jamai-scroll.py` (scrolls left to right, red playhead) or `jamai-score-video.py` (one system at a time) |
+| "what did we write before?" | `jamai-legacy list <folder>` |
+| "open it in MuseScore" | `jamai-musescore file.abc` (`--no-open` to convert only) |
 | "publish it" | `jamai-publish-melody` |
 | "who receives my music?" | `jamai-hub subscriptions` |
 

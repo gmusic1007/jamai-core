@@ -20,6 +20,10 @@ JAMAI_STATE_DIR | quiet | ~/.local/state/jamai | Facts ledger, hub data and rend
 
 # ── Render: ABC to sound ─────────────────────────────────────────────
 JAMAI_SOUNDFONT | ask | /usr/share/sounds/sf2/FluidR3_GM.sf2 | General MIDI soundfont that FluidSynth plays through.
+JAMAI_MUSESCORE_BIN | quiet | | MuseScore program for jamai-musescore. Empty: the first one found on your PATH.
+
+# ── Legacy: ABC sessions written before the package ──────────────────
+JAMAI_LEGACY_DIRS | ask | | Folders holding older ABC sessions, separated by ':'. Empty: name a folder each time.
 
 # ── Publish: the melody page ─────────────────────────────────────────
 JAMAI_MELODY_DIR | ask | ~/.local/share/jamai/site/melody | Folder that receives each published melody and the page that lists them.

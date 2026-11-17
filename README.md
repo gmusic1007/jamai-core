@@ -17,11 +17,11 @@ git clone https://github.com/gmusic1007/jamai-core.git
 The installer does four things, in this order:
 
 1. **Asks the settings** declared in [`settings`](settings): where the commands go, which
-   soundfont, where melodies are published and under which public address, the hub's port,
-   the screen and speaker names. Enter keeps the value shown in brackets.
+   soundfont, where older ABC sessions live, where melodies are published and under which
+   public address, the hub's port, the screen and speaker names. Enter keeps the value shown in brackets.
 2. **Writes them** to `~/.config/jamai/jamai.env` (plain `KEY=VALUE`). The one secret, the hub's
    admin token, is generated and kept apart in `secrets.env`, mode 600.
-3. **Links the 19 commands** into the folder you chose (default `~/.local/bin`). A file already
+3. **Links the 21 commands** into the folder you chose (default `~/.local/bin`). A file already
    there is renamed `name.bak-<stamp>`, never deleted.
 4. **Runs `jamai doctor`**, which names each missing program, the package that brings it, and
    what stops working without it.
@@ -65,6 +65,20 @@ jamai setup                       # ask them all again
 
 Nothing about where you publish is built into a tool. The self-test fails if a house address
 appears in the packaged code.
+
+## Older sessions, and MuseScore
+
+```bash
+jamai-legacy list ~/old-sessions            # every ABC session under a folder: date, key, meter, tempo, title
+jamai-musescore ~/old-sessions/theme.abc    # open one in MuseScore as a score you can edit
+jamai-publish-melody ~/old-sessions/theme.abc
+```
+
+A legacy session is plain ABC, so every command takes it as it is. `jamai-musescore` goes through
+MIDI: `abc2midi` writes the MIDI file and MuseScore's own converter turns it into MusicXML. Notes,
+rhythm, tempo, key and instruments come through. Chord symbols, lyrics and voice names do not.
+`--no-open` converts without opening a window. Set `JAMAI_LEGACY_DIRS` to list without naming a
+folder each time.
 
 ## People who want your music: the hub
 
@@ -115,9 +129,10 @@ claude plugin marketplace add gmusic1007/jamai-core       # or the plugin: tools
 claude plugin install jamai@jamai-core
 ```
 
-`jamai-mcp` offers nine tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
-`jamai_midi_notes`, `jamai_chords`, `jamai_tab`, `jamai_publish_melody`, `jamai_list_melodies`,
-`jamai_events`. Only `jamai_publish_melody` changes a published page. The plugin adds the
+`jamai-mcp` offers eleven tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
+`jamai_midi_notes`, `jamai_chords`, `jamai_tab`, `jamai_legacy_list`, `jamai_musescore`,
+`jamai_publish_melody`, `jamai_list_melodies`, `jamai_events`. Only `jamai_publish_melody`
+changes a published page, and only `jamai_musescore` with `open: true` opens a window. The plugin adds the
 [`jamai` skill](claude/jamai/skills/jamai/SKILL.md): the order of work, and the traps that each
 cost a session to find. The plugin needs jamai-core installed first, since it calls `jamai-mcp`
 by name.
@@ -134,6 +149,7 @@ by name.
 | | `jamai-measure.py` | tempo, structure, pitch and timbre of a recording |
 | | `jamai-grille.py` | measure the bar grid before writing the score |
 | `render/` | `jamai-render` | ABC to MIDI, WAV, MP3 and an engraved score |
+| | `jamai-musescore` | open a melody in MuseScore as an editable score |
 | | `jamai-tab.py` | six-line guitar tablature from ABC |
 | | `jamai-score-video.py` | score video, one system at a time |
 | | `jamai-scroll.py` | score video scrolling left to right under a red playhead |
@@ -142,6 +158,7 @@ by name.
 | `workshop/` | `jamai-unread.py` | recorder drops nobody has worked on yet |
 | | `jamai-related.py` | units that already speak of the same thing |
 | | `jamai-follow-fork` | follow a Claude session read-only |
+| | `jamai-legacy` | ABC sessions written before the package, ready to open or publish |
 | `broadcast/` | `jamai-cast` | an HTML page on a Chromecast screen |
 | | `jamai-say` | a spoken sentence on a Chromecast speaker |
 | `moments/` | `routine` | a named moment of a house: its screen, speaker and posture |
@@ -154,9 +171,11 @@ by name.
 tests/selftest.sh
 ```
 
-It installs into a throwaway folder and checks 69 things: the settings and the links, a render,
+It installs into a throwaway folder and checks 80 things: the settings and the links, a render,
 the three publication cases, the hub's invite, signature, single delivery and refusals, byte
-ranges, the MCP server, and that no house address is in the packaged code. It touches none of
+ranges, a legacy session listed, converted for MuseScore and published, the MCP server, and
+that no house address is in the packaged code. Where MuseScore is absent, its three checks are
+skipped and one other check confirms the command says so. It touches none of
 your files and reaches no outside address.
 
 ## Where this comes from
@@ -167,6 +186,6 @@ Jerry ⚡ of the G.Music Assembly, and gathered here from the places they had gr
 note was played. This repository took the name and left the plan. It packages only what runs.
 
 Not in the package yet: the drop watcher and transcription (`jamai-on-drop`, `jamai-watch`), the
-footage clip tools, the speaker bridge, and the MuseScore bridge.
+footage clip tools and the speaker bridge.
 
 *♠️🌿🎸🧵 G.Music Assembly*

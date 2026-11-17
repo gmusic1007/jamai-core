@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""jamai-legacy — find the ABC sessions written before this package existed.
+
+  jamai-legacy list [DIR ...]       every .abc under the folders, newest first
+  jamai-legacy list --json [DIR ...]
+  jamai-legacy show <file.abc>      its headers, and the line where its tune starts
+
+The folders come from the arguments, else from JAMAI_LEGACY_DIRS (several, separated by ':').
+`jamai setup` asks for it.
+
+A legacy session is plain ABC, so the rest of the package takes it as it is:
+  jamai-render <file>            hear it
+  jamai-musescore <file>         open it in MuseScore
+  jamai-publish-melody <file>    publish it, and announce it to subscribers
+
+The date shown is the one in the file name when it starts with one (251017_… or 20251012…),
+else the day the file was last changed. Standard library only.
+"""
+import json
+import os
+import re
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import jamai_env  # noqa: E402
+
+SKIP = {".git", "node_modules", "__pycache__", ".venv", "venv"}
+HEADERS = ("T", "C", "M", "L", "Q", "K")
+
+
+def read_abc(path):
+    """The headers of the first tune of an ABC file, and how many tunes it holds."""
+    info = {h: "" for h in HEADERS}
+    tunes, start, in_header = 0, 0, False
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for number, line in enumerate(fh, 1):
+                line = line.rstrip("\n")
+                if line.startswith("X:"):
+                    tunes += 1
+                    if tunes == 1:
+                        start, in_header = number, True
+                    continue
+                if in_header and len(line) > 1 and line[1] == ":" and line[0] in HEADERS:
+                    if not info[line[0]]:
+                        info[line[0]] = line[2:].strip()
+                    if line[0] == "K":
+                        in_header = False
+    except OSError as exc:
+        raise SystemExit("jamai-legacy: cannot read %s: %s" % (path, exc))
+    return info, tunes, start
+
+
+def session_date(path):
+    name = os.path.basename(path)
+    match = re.match(r"(\d{8}|\d{6})(?!\d)", name)
+    if match:
+        digits = match.group(1)
+        if len(digits) == 6:
+            digits = "20" + digits
+        year, month, day = int(digits[:4]), int(digits[4:6]), int(digits[6:])
+        if 2000 <= year <= 2099 and 1 <= month <= 12 and 1 <= day <= 31:
+            return "%04d-%02d-%02d" % (year, month, day)
+    return time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(path)))
+
+
+def find(folders):
+    rows = []
+    for folder in folders:
+        folder = os.path.expanduser(folder)
+        if not os.path.isdir(folder):
+            print("jamai-legacy: not a folder: %s" % folder, file=sys.stderr)
+            continue
+        for base, dirs, files in os.walk(folder):
+            dirs[:] = sorted(d for d in dirs if d not in SKIP)
+            for name in sorted(files):
+                if not name.lower().endswith(".abc"):
+                    continue
+                path = os.path.join(base, name)
+                info, tunes, _ = read_abc(path)
+                if tunes == 0:
+                    continue                    # an .abc file with no tune in it
+                rows.append({"date": session_date(path), "title": info["T"], "key": info["K"],
+                             "meter": info["M"], "tempo": info["Q"], "composer": info["C"],
+                             "tunes": tunes, "path": path})
+    rows.sort(key=lambda r: (r["date"], r["path"]), reverse=True)
+    return rows
+
+
+def main(argv):
+    command = argv[0] if argv else "help"
+    rest = argv[1:]
+    if command == "list":
+        as_json = "--json" in rest
+        folders = [a for a in rest if a != "--json"]
+        if not folders:
+            configured = jamai_env.load().get("JAMAI_LEGACY_DIRS", "")
+            folders = [f for f in configured.split(":") if f]
+        if not folders:
+            sys.exit("jamai-legacy: name a folder, or set JAMAI_LEGACY_DIRS (jamai config set JAMAI_LEGACY_DIRS <dir>:<dir>)")
+        rows = find(folders)
+        if as_json:
+            print(json.dumps(rows, ensure_ascii=False, indent=1))
+            return
+        for row in rows:
+            print("%s  %-8s %-5s %-9s %s\n            %s" % (row["date"], row["key"][:8], row["meter"][:5],
+                                                              row["tempo"][:9], row["title"], row["path"]))
+        print("%d session(s)" % len(rows))
+    elif command == "show":
+        if not rest:
+            sys.exit("usage: jamai-legacy show <file.abc>")
+        info, tunes, start = read_abc(rest[0])
+        if tunes == 0:
+            sys.exit("jamai-legacy: no tune (no X: line) in %s" % rest[0])
+        print("file    %s\ndate    %s\ntunes   %d (the first starts at line %d)" % (rest[0], session_date(rest[0]), tunes, start))
+        for header, label in (("T", "title"), ("C", "by"), ("K", "key"), ("M", "meter"), ("L", "unit"), ("Q", "tempo")):
+            if info[header]:
+                print("%-7s %s" % (label, info[header]))
+    elif command in ("help", "-h", "--help"):
+        print(__doc__)
+    else:
+        sys.exit("jamai-legacy: unknown command %s (try: jamai-legacy help)" % command)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

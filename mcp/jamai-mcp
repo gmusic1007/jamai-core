@@ -115,6 +115,19 @@ def t_events(a):
     return "\n".join(lines[-int(a.get("limit", 10)):]) or "the ledger is empty", False
 
 
+def t_legacy(a):
+    return run([sys.executable, tool("workshop/jamai-legacy"), "list"] + [str(d) for d in (a.get("dirs") or [])])
+
+
+def t_musescore(a):
+    args = [tool("render/jamai-musescore")]
+    if not a.get("open"):
+        args.append("--no-open")
+    if a.get("out"):
+        args += ["--out", str(a["out"])]
+    return run(args + [str(a["path"])])
+
+
 def schema(properties, required=()):
     return {"type": "object", "properties": properties, "required": list(required)}
 
@@ -146,6 +159,14 @@ TOOLS = [
              "note": dict(STR, description="Session note shown on the page."),
              "announce": dict(BOOL, description="False publishes without telling subscribers. Default true.")},
             ["abc"]), t_publish),
+    ("jamai_legacy_list", "List the ABC sessions written before the package: date, key, meter, tempo, title, path. "
+     "Each one can be rendered, opened in MuseScore or published as it is.",
+     schema({"dirs": {"type": "array", "items": STR, "description": "Folders to search. Default: JAMAI_LEGACY_DIRS."}}), t_legacy),
+    ("jamai_musescore", "Convert an ABC or MIDI file to MusicXML through MuseScore and, when open is true, open it "
+     "in MuseScore on the person's screen. Chord symbols, lyrics and voice names do not survive the conversion.",
+     schema({"path": dict(STR, description="An .abc, .mid or .musicxml file."),
+             "open": dict(BOOL, description="True opens a MuseScore window. Default false: convert only."),
+             "out": dict(STR, description="Output folder.")}, ["path"]), t_musescore),
     ("jamai_list_melodies", "List the melodies already published: date, slug, key, meter, duration, title.",
      schema({"limit": dict(INT, description="Default 20.")}), t_melodies),
     ("jamai_events", "Show the last facts announced to subscribers (melody.published, melody.revised).",

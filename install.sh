@@ -34,9 +34,9 @@ fi
 TOOLS=(bin/jamai
        listen/jamai-midi.py listen/jamai-chords.py listen/jamai-chords-audio.py
        listen/jamai-measure.py listen/jamai-grille.py
-       render/jamai-render render/jamai-tab.py render/jamai-score-video.py render/jamai-scroll.py
+       render/jamai-render render/jamai-musescore render/jamai-tab.py render/jamai-score-video.py render/jamai-scroll.py
        publish/jamai-publish-melody publish/jamai-hub
-       workshop/jamai-unread.py workshop/jamai-related.py workshop/jamai-follow-fork
+       workshop/jamai-unread.py workshop/jamai-related.py workshop/jamai-follow-fork workshop/jamai-legacy
        broadcast/jamai-cast broadcast/jamai-say
        moments/routine
        mcp/jamai-mcp)
@@ -103,6 +103,7 @@ case "$mode" in
 Next:
   jamai-publish-melody examples/first-light.abc     render and publish a first melody
   jamai hub serve                                   the melody page and its subscriptions, on your machine
+  jamai-legacy list <folder>                        older ABC sessions, ready to open or publish
   jamai config show                                 every setting and where its value comes from
 EOF
     ;;
