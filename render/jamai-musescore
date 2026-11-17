@@ -3,6 +3,8 @@
 #
 #   jamai-musescore <file.abc | file.mid | file.musicxml>
 #   jamai-musescore --no-open --out DIR <file.abc>      convert only, open nothing
+#   jamai-musescore --install-musescore [--version 4.7.7] [--dry-run]
+#                                                       install or update MuseScore itself (Linux AppImage)
 #   jamai-musescore --install-plugin                    put the live-control plugin in MuseScore's plugins folder
 #   jamai-musescore --live <action> ['<json params>']   send one command to the score open in MuseScore
 #   jamai-musescore --export pdf,mp3,musicxml [--parts] [--transpose-semitones N] [--out DIR] <file>
@@ -50,6 +52,67 @@ plugins_dir() {
 }
 case "${1:-}" in
   --plugins-dir) plugins_dir; echo; exit 0 ;;
+  --install-musescore)
+    # MuseScore's own Linux build, from its GitHub releases, checked against the checksum GitHub
+    # publishes for the file. Installed for this person only, with no sudo:
+    # $JAMAI_MUSESCORE_HOME (default ~/.local/share/jamai/musescore). An older version stays beside it.
+    shift; want=""; dry=0
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --version) want="${2#v}"; shift 2 ;;
+        --dry-run) dry=1; shift ;;
+        *) echo "usage: jamai-musescore --install-musescore [--version 4.7.7] [--dry-run]" >&2; exit 2 ;;
+      esac
+    done
+    [[ "$(uname -s)" == "Linux" ]] || { echo "jamai-musescore: --install-musescore installs the Linux build. On macOS or Windows, install MuseScore Studio from https://musescore.org/download" >&2; exit 2; }
+    arch="$(uname -m)"
+    [[ "$arch" == "x86_64" || "$arch" == "aarch64" ]] || { echo "jamai-musescore: MuseScore publishes no AppImage for $arch" >&2; exit 2; }
+    home_ms="${JAMAI_MUSESCORE_HOME:-$HOME/.local/share/jamai/musescore}"
+    if [[ -n "${JAMAI_MUSESCORE_RELEASE_JSON:-}" ]]; then release="$(cat "$JAMAI_MUSESCORE_RELEASE_JSON")"
+    else
+      api="https://api.github.com/repos/musescore/MuseScore/releases/latest"
+      [[ -n "$want" ]] && api="https://api.github.com/repos/musescore/MuseScore/releases/tags/v$want"
+      release="$(curl -fsSL -H 'Accept: application/vnd.github+json' "$api")" \
+        || { echo "jamai-musescore: could not read MuseScore's release list from GitHub ($api)" >&2; exit 4; }
+    fi
+    tag="$(printf '%s' "$release" | jq -r '.tag_name // empty')"
+    asset="$(printf '%s' "$release" | jq -c --arg arch "$arch" '[.assets[] | select(.name | test("-" + $arch + "\\.AppImage$"))][0] // empty')"
+    [[ -n "$asset" ]] || { echo "jamai-musescore: release ${tag:-?} has no AppImage for $arch" >&2; exit 4; }
+    name_ms="$(printf '%s' "$asset" | jq -r .name)"; url="$(printf '%s' "$asset" | jq -r .browser_download_url)"
+    digest="$(printf '%s' "$asset" | jq -r '.digest // empty')"; digest="${digest#sha256:}"
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || { echo "jamai-musescore: GitHub publishes no sha256 for $name_ms, so it is not installed" >&2; exit 4; }
+    dest="$home_ms/$name_ms"
+    printf 'musescore\t%s (%s)\nfile\t%s\nsha256\t%s\n' "${tag#v}" "$arch" "$dest" "$digest"
+    if [[ "$dry" -eq 1 ]]; then printf 'dry-run\tnothing downloaded\n'; exit 0; fi
+    mkdir -p "$home_ms"
+    if [[ -f "$dest" ]] && [[ "$(sha256sum "$dest" | cut -d' ' -f1)" == "$digest" ]]; then
+      printf 'status\talready installed\n'
+    else
+      echo "… downloading $name_ms ($(( $(printf '%s' "$asset" | jq -r '.size // 0') / 1048576 )) MB)" >&2
+      curl -fL --retry 3 -sS -o "$dest.partial" "$url" || { rm -f "$dest.partial"; echo "jamai-musescore: the download failed" >&2; exit 4; }
+      got="$(sha256sum "$dest.partial" | cut -d' ' -f1)"
+      if [[ "$got" != "$digest" ]]; then
+        rm -f "$dest.partial"
+        echo "jamai-musescore: the file does not match GitHub's checksum (got $got), so it is not installed" >&2; exit 4
+      fi
+      mv "$dest.partial" "$dest"; chmod 755 "$dest"
+      printf 'status\tinstalled, checksum matches\n'
+    fi
+    # The jamai tools use this copy from now on.
+    "$_here/../bin/jamai" config set JAMAI_MUSESCORE_BIN "$dest" > /dev/null
+    printf 'setting\tJAMAI_MUSESCORE_BIN=%s\n' "$dest"
+    # A `musescore4` command too, unless one already exists that is not ours.
+    bindir="${JAMAI_BIN:-$HOME/.local/bin}"; link="$bindir/musescore4"
+    if [[ -L "$link" && "$(readlink -f "$link")" == "$home_ms"/* ]] || ! command -v musescore4 > /dev/null 2>&1; then
+      mkdir -p "$bindir"; ln -sfn "$dest" "$link"; printf 'command\t%s → %s\n' "$link" "$dest"
+    else
+      printf 'command\tmusescore4 already exists (%s) and is left as it is\n' "$(command -v musescore4)"
+    fi
+    if ! ldconfig -p 2>/dev/null | grep -q 'libfuse.so.2'; then
+      printf 'note\tAppImages need libfuse2 to start: sudo apt install libfuse2t64 (Ubuntu 24.04) or libfuse2 (older)\n'
+    fi
+    "$0" --install-plugin
+    exit 0 ;;
   --install-plugin)
     src="$_here/../musescore/musescore-mcp-websocket.qml"
     dir="$(plugins_dir)"; dst="$dir/musescore-mcp-websocket.qml"

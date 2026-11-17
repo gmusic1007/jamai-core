@@ -258,6 +258,31 @@ check "--live sends an action with its params" bash -c "jamai-musescore --live a
 quiet_port="$(free_port)"
 check "with nothing listening, it says how to start the plugin (exit 3)" bash -c "JAMAI_MUSESCORE_LIVE_PORT=$quiet_port jamai-musescore --live ping 2>&1 | grep -q 'enable \"musescore-mcp-websocket\"'; test \${PIPESTATUS[0]} -eq 3"
 
+echo "── installing MuseScore itself (offline: a stand-in file and a local release list)"
+MS_ARCH="$(uname -m)"
+if [ "$(uname -s)" = Linux ] && { [ "$MS_ARCH" = x86_64 ] || [ "$MS_ARCH" = aarch64 ]; }; then
+  mkdir -p "$T/msrelease"
+  FAKE_NAME="MuseScore-Studio-9.9.9.000000000-$MS_ARCH.AppImage"
+  printf '#!/bin/sh\necho "MuseScore4 9.9.9"\n' > "$T/msrelease/$FAKE_NAME"
+  FAKE_SHA="$(sha256sum "$T/msrelease/$FAKE_NAME" | cut -d' ' -f1)"
+  printf '{"tag_name":"v9.9.9","assets":[{"name":"%s","size":40,"digest":"sha256:%s","browser_download_url":"file://%s"}]}' \
+    "$FAKE_NAME" "$FAKE_SHA" "$T/msrelease/$FAKE_NAME" > "$T/msrelease/release.json"
+  ms_env() { JAMAI_CONFIG_DIR="$T/config-ms" JAMAI_MUSESCORE_HOME="$T/mshome" JAMAI_MUSESCORE_RELEASE_JSON="$T/msrelease/$1" JAMAI_BIN="$T/msbin" "${@:2}"; }
+  ms_env release.json jamai-musescore --install-musescore --dry-run > "$T/ms-dry.out" 2>&1
+  check "--dry-run names the file and its checksum, and downloads nothing" bash -c "grep -q '$FAKE_SHA' '$T/ms-dry.out' && test ! -e '$T/mshome/$FAKE_NAME'"
+  ms_env release.json jamai-musescore --install-musescore > "$T/ms-install.out" 2>&1
+  check "--install-musescore installs the file when its checksum matches" test -x "$T/mshome/$FAKE_NAME"
+  check "it sets JAMAI_MUSESCORE_BIN to that file" bash -c "grep -q -x 'JAMAI_MUSESCORE_BIN=$T/mshome/$FAKE_NAME' '$T/config-ms/jamai.env'"
+  check "it puts the live-control plugin in place too" grep -q 'plugin' "$T/ms-install.out"
+  check "a second run says it is already installed" bash -c "JAMAI_CONFIG_DIR='$T/config-ms' JAMAI_MUSESCORE_HOME='$T/mshome' JAMAI_MUSESCORE_RELEASE_JSON='$T/msrelease/release.json' JAMAI_BIN='$T/msbin' jamai-musescore --install-musescore | grep -q 'already installed'"
+  sed "s/$FAKE_SHA/0000000000000000000000000000000000000000000000000000000000000000/" "$T/msrelease/release.json" > "$T/msrelease/bad.json"
+  rm -f "$T/mshome/$FAKE_NAME"
+  ms_env bad.json jamai-musescore --install-musescore > "$T/ms-bad.out" 2>&1; bad_rc=$?
+  check "a file that does not match the checksum is refused and not installed" bash -c "test $bad_rc -eq 4 && grep -q 'does not match' '$T/ms-bad.out' && test ! -e '$T/mshome/$FAKE_NAME'"
+else
+  skip "--install-musescore: not a Linux x86_64 or aarch64 machine (6 checks)"
+fi
+
 echo "── mcp"
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"selftest","version":"0"}}}' \

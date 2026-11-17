@@ -228,7 +228,7 @@ cmd_doctor() {
   local ms="${JAMAI_MUSESCORE_BIN:-}" c
   if [ -z "$ms" ]; then for c in musescore4 mscore4 mscore musescore musescore3 mscore3; do command -v "$c" >/dev/null 2>&1 && { ms="$c"; break; }; done; fi
   if [ -n "$ms" ] && command -v "$ms" >/dev/null 2>&1; then printf 'ok       %-8s %-13s %s\n' score musescore "$(command -v "$ms")"
-  else printf 'MISSING  %-8s %-13s %s — %s\n' score musescore "install MuseScore from musescore.org" "jamai-musescore cannot open a melody as a score"; count_missing score; fi
+  else printf 'MISSING  %-8s %-13s %s — %s\n' score musescore "jamai-musescore --install-musescore" "no score opens, nothing exports through MuseScore, no live control"; count_missing score; fi
   if [ -n "$ms" ] && command -v "$ms" >/dev/null 2>&1; then
     local plug; plug="$("$ROOT/render/jamai-musescore" --plugins-dir 2>/dev/null)/musescore-mcp-websocket.qml"
     if [ -f "$plug" ]; then printf 'ok       %-8s %-13s %s\n' live plugin "$plug"
