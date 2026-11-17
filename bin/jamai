@@ -229,6 +229,11 @@ cmd_doctor() {
   if [ -z "$ms" ]; then for c in musescore4 mscore4 mscore musescore musescore3 mscore3; do command -v "$c" >/dev/null 2>&1 && { ms="$c"; break; }; done; fi
   if [ -n "$ms" ] && command -v "$ms" >/dev/null 2>&1; then printf 'ok       %-8s %-13s %s\n' score musescore "$(command -v "$ms")"
   else printf 'MISSING  %-8s %-13s %s — %s\n' score musescore "install MuseScore from musescore.org" "jamai-musescore cannot open a melody as a score"; count_missing score; fi
+  if [ -n "$ms" ] && command -v "$ms" >/dev/null 2>&1; then
+    local plug; plug="$("$ROOT/render/jamai-musescore" --plugins-dir 2>/dev/null)/musescore-mcp-websocket.qml"
+    if [ -f "$plug" ]; then printf 'ok       %-8s %-13s %s\n' live plugin "$plug"
+    else printf 'MISSING  %-8s %-13s %s — %s\n' live plugin "jamai-musescore --install-plugin" "an agent cannot change the score open in MuseScore"; count_missing live; fi
+  fi
   echo
   local bin="${JAMAI_BIN:-$HOME/.local/bin}"
   case ":$PATH:" in *":$bin:"*) echo "ok       path     $bin is on your PATH" ;;

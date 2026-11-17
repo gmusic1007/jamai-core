@@ -3,6 +3,12 @@
 #
 #   jamai-musescore <file.abc | file.mid | file.musicxml>
 #   jamai-musescore --no-open --out DIR <file.abc>      convert only, open nothing
+#   jamai-musescore --install-plugin                    put the live-control plugin in MuseScore's plugins folder
+#   jamai-musescore --live <action> ['<json params>']   send one command to the score open in MuseScore
+#
+# Live control: once the plugin runs in MuseScore (Plugins → MuseScore API Server), each command
+# changes the open score as you watch. `--live ping` answers "pong" when it is listening. The
+# actions and their parameters are listed in musescore/README.md.
 #
 # ABC reaches MuseScore through MIDI: abc2midi writes the MIDI file, then MuseScore's own
 # converter writes MusicXML from it, and MuseScore opens that. No program beyond MuseScore
@@ -21,6 +27,38 @@ set -euo pipefail
 _here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 [ -r "$_here/../lib/jamai-env.sh" ] && . "$_here/../lib/jamai-env.sh"
 STATE_DIR="${JAMAI_STATE_DIR:-$HOME/.local/state/jamai}"
+
+plugins_dir() {
+  # The folder MuseScore reads plugins from: the setting, MuseScore's own choice, then its default.
+  if [[ -n "${JAMAI_MUSESCORE_PLUGINS_DIR:-}" ]]; then printf '%s' "$JAMAI_MUSESCORE_PLUGINS_DIR"; return; fi
+  local ini="${XDG_CONFIG_HOME:-$HOME/.config}/MuseScore/MuseScore4.ini" mine=""
+  [[ -r "$ini" ]] && mine="$(sed -n 's/^paths\\myPlugins=//p' "$ini" | head -n 1)"
+  if [[ -n "$mine" ]]; then printf '%s' "$mine"; return; fi
+  local docs; docs="$(xdg-user-dir DOCUMENTS 2>/dev/null || true)"
+  [[ -n "$docs" && "$docs" != "$HOME" ]] || docs="$HOME/Documents"
+  printf '%s/MuseScore4/Plugins' "$docs"
+}
+case "${1:-}" in
+  --plugins-dir) plugins_dir; echo; exit 0 ;;
+  --install-plugin)
+    src="$_here/../musescore/musescore-mcp-websocket.qml"
+    dir="$(plugins_dir)"; dst="$dir/musescore-mcp-websocket.qml"
+    mkdir -p "$dir"
+    if [[ -f "$dst" ]] && cmp -s "$src" "$dst"; then
+      printf 'plugin\talready installed: %s\n' "$dst"
+    else
+      # Whatever is there is kept, never deleted.
+      [[ -e "$dst" ]] && mv "$dst" "$dst.bak-$(date +%y%m%d%H%M%S)"
+      cp "$src" "$dst"
+      printf 'plugin\tinstalled: %s\n' "$dst"
+    fi
+    printf 'next\tin MuseScore, once: Home → Plugins, enable "MuseScore API Server". Each session: Plugins → MuseScore API Server.\n'
+    exit 0 ;;
+  --live)
+    shift
+    [[ $# -ge 1 ]] || { echo "usage: jamai-musescore --live <action> ['<json params>']   (actions: musescore/README.md)" >&2; exit 2; }
+    exec python3 "$_here/../lib/jamai_ws.py" "$@" ;;
+esac
 
 out=""; open=1; positional=()
 while [[ $# -gt 0 ]]; do

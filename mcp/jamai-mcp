@@ -128,6 +128,64 @@ def t_musescore(a):
     return run(args + [str(a["path"])])
 
 
+import jamai_ws  # noqa: E402
+
+LIVE_ACTIONS = ["ping", "getScore", "getCursorInfo", "undo", "goToBeginningOfScore", "goToFinalMeasure",
+                "goToMeasure", "nextElement", "prevElement", "nextStaff", "prevStaff", "selectCurrentMeasure",
+                "selectCustomRange", "syncStateToSelection", "addNote", "addRest", "addTuplet", "addLyrics",
+                "appendMeasure", "insertMeasure", "deleteSelection", "setTimeSignature", "setTempo",
+                "addInstrument", "setStaffMute", "setInstrumentSound", "processSequence"]
+_LIVE = {"client": None}
+
+
+def live_command(action, params=None):
+    """One command to the running MuseScore plugin, on a kept connection, reconnecting once."""
+    for attempt in (1, 2):
+        try:
+            if _LIVE["client"] is None:
+                _LIVE["client"] = jamai_ws.Client().connect()
+            return _LIVE["client"].command(action, params or {})
+        except (jamai_ws.WebSocketError, OSError) as exc:
+            if _LIVE["client"] is not None:
+                _LIVE["client"].close()
+                _LIVE["client"] = None
+            if attempt == 2:
+                raise jamai_ws.WebSocketError(str(exc))
+
+
+def live_text(action, params=None):
+    try:
+        reply = live_command(action, params)
+    except jamai_ws.WebSocketError as exc:
+        return str(exc), True
+    text = json.dumps(reply, ensure_ascii=False, indent=1)
+    if len(text) > LIMIT:
+        text = text[:LIMIT] + "\n… (%d more characters not shown)" % (len(text) - LIMIT)
+    return text, reply.get("status") != "success"
+
+
+def t_live_status(a):
+    text, failed = live_text("ping")
+    if failed:
+        return text, True
+    cursor, _ = live_text("getCursorInfo")
+    return "MuseScore is listening: changes sent with musescore_live appear in the open score.\nCursor:\n" + cursor, False
+
+
+def t_live_score(a):
+    return live_text("getScore")
+
+
+def t_live(a):
+    action = str(a["action"])
+    if action not in LIVE_ACTIONS:
+        return "unknown action %s. Known: %s" % (action, ", ".join(LIVE_ACTIONS)), True
+    params = a.get("params") or {}
+    if not isinstance(params, dict):
+        return "params must be an object", True
+    return live_text(action, params)
+
+
 def schema(properties, required=()):
     return {"type": "object", "properties": properties, "required": list(required)}
 
@@ -167,6 +225,24 @@ TOOLS = [
      schema({"path": dict(STR, description="An .abc, .mid or .musicxml file."),
              "open": dict(BOOL, description="True opens a MuseScore window. Default false: convert only."),
              "out": dict(STR, description="Output folder.")}, ["path"]), t_musescore),
+    ("musescore_live_status", "Check whether MuseScore's live-control plugin is running, and where its cursor is. "
+     "When it is not running, the answer says the two clicks that start it.",
+     schema({}), t_live_status),
+    ("musescore_get_score", "Read the score open in MuseScore right now: measures, staves, notes.",
+     schema({}), t_live_score),
+    ("musescore_live", "Change the score open in MuseScore, live: the person sees each change as it is made, and "
+     "MuseScore's undo (or the action undo) reverses it. Work from the cursor: goToMeasure, then addNote or addRest. "
+     "Actions and params: addNote {pitch: MIDI 0-127, 60 = middle C, duration: {numerator, denominator}, "
+     "advanceCursorAfterAction}; addRest {duration, advanceCursorAfterAction}; addTuplet {duration, ratio, "
+     "advanceCursorAfterAction}; addLyrics {lyrics: [syllables], verse}; goToMeasure {measure}; appendMeasure {count}; "
+     "selectCustomRange {startTick, endTick, startStaff, endStaff}; setTimeSignature {numerator, denominator}; "
+     "setTempo {bpm}; addInstrument {instrumentId}; setStaffMute {staff, mute}; setInstrumentSound {staff, "
+     "instrumentId}; processSequence {sequence: [{action, params}, ...]}. No params: getCursorInfo, undo, "
+     "goToBeginningOfScore, goToFinalMeasure, nextElement, prevElement, nextStaff, prevStaff, selectCurrentMeasure, "
+     "insertMeasure, deleteSelection, syncStateToSelection.",
+     schema({"action": {"type": "string", "enum": LIVE_ACTIONS},
+             "params": {"type": "object", "description": "The action's parameters, as listed above."}},
+            ["action"]), t_live),
     ("jamai_list_melodies", "List the melodies already published: date, slug, key, meter, duration, title.",
      schema({"limit": dict(INT, description="Default 20.")}), t_melodies),
     ("jamai_events", "Show the last facts announced to subscribers (melody.published, melody.revised).",

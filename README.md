@@ -98,6 +98,22 @@ rhythm, tempo, key and instruments come through. Chord symbols, lyrics and voice
 `--no-open` converts without opening a window. Set `JAMAI_LEGACY_DIRS` to list without naming a
 folder each time.
 
+### Live: an agent changes the score while you watch
+
+`install.sh` puts a MuseScore plugin in MuseScore's plugins folder when MuseScore is installed
+(`jamai-musescore --install-plugin` does it by hand). In MuseScore, once: **Home → Plugins**, enable
+**MuseScore API Server**. Each session: **Plugins → MuseScore API Server**. From then on, an agent with
+`jamai-mcp` adds notes, rests, lyrics, measures and instruments, or changes the tempo, in the score open
+on your screen, and MuseScore's undo reverses each change. From a terminal:
+
+```bash
+jamai-musescore --live ping                 # "pong" when MuseScore is listening
+jamai-musescore --live addNote '{"pitch": 60, "duration": {"numerator": 1, "denominator": 4}}'
+```
+
+Every action and its parameters: [`musescore/README.md`](musescore/README.md). The plugin comes from
+[mcp-musescore-gmusic](https://github.com/Gerico1007/mcp-musescore-gmusic), MIT.
+
 ## People who want your music: the hub
 
 After each publication, `jamai-publish-melody` appends one fact to a ledger and delivers nothing
@@ -147,10 +163,12 @@ claude plugin marketplace add gmusic1007/jamai-core       # or the plugin: tools
 claude plugin install jamai@jamai-core
 ```
 
-`jamai-mcp` offers eleven tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
+`jamai-mcp` offers fourteen tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
 `jamai_midi_notes`, `jamai_chords`, `jamai_tab`, `jamai_legacy_list`, `jamai_musescore`,
-`jamai_publish_melody`, `jamai_list_melodies`, `jamai_events`. Only `jamai_publish_melody`
-changes a published page, and only `jamai_musescore` with `open: true` opens a window. The plugin adds the
+`jamai_publish_melody`, `jamai_list_melodies`, `jamai_events`, and for the score open in MuseScore,
+`musescore_live_status`, `musescore_get_score` and `musescore_live`. Only `jamai_publish_melody`
+changes a published page, only `jamai_musescore` with `open: true` opens a window, and only
+`musescore_live` changes the open score. The plugin adds the
 [`jamai` skill](claude/jamai/skills/jamai/SKILL.md): the order of work, and the traps that each
 cost a session to find. The plugin needs jamai-core installed first, since it calls `jamai-mcp`
 by name.
@@ -189,10 +207,10 @@ by name.
 tests/selftest.sh
 ```
 
-It installs into a throwaway folder and checks 94 things: the settings and the links, a render,
+It installs into a throwaway folder and checks 103 things: the settings and the links, a render,
 the three publication cases, the hub's invite, signature, single delivery and refusals, byte
 ranges, a legacy session listed, converted for MuseScore and published, the defects fixed under
-gmusic1007/jamai-core#4, the MCP server, and that no house address is in the packaged code. Where MuseScore is absent, its three checks are
+gmusic1007/jamai-core#4, live control against a stand-in MuseScore, the MCP server, and that no house address is in the packaged code. Where MuseScore is absent, its three checks are
 skipped and one other check confirms the command says so. It touches none of
 your files and reaches no outside address.
 

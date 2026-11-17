@@ -96,6 +96,12 @@ case "$mode" in
   uninstall) echo "$linked link(s) removed from $TARGET. Your config in $("$ROOT/bin/jamai" config path) is untouched." ;;
   install)
     echo "$linked / ${#TOOLS[@]} commands linked in $TARGET"
+    # Live control of an open score: the MuseScore plugin goes in place when MuseScore is here.
+    for ms in "${JAMAI_MUSESCORE_BIN:-}" musescore4 mscore4 mscore musescore; do
+      if [ -n "$ms" ] && command -v "$ms" >/dev/null 2>&1; then
+        echo; "$ROOT/render/jamai-musescore" --install-plugin; break
+      fi
+    done
     echo
     "$ROOT/bin/jamai" doctor || true
     cat <<EOF

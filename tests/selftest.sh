@@ -9,7 +9,8 @@
 # and publishes with no house address in the result; the right fact is announced (published,
 # unchanged, revised); the hub accepts a subscription by invite only, delivers one signed
 # POST per fact, refuses private targets, serves the page and byte ranges; a legacy ABC
-# session is listed, converted for MuseScore and published; the MCP server lists and runs its tools.
+# session is listed, converted for MuseScore and published; the live-control plugin is installed and a
+# stand-in MuseScore receives commands; the MCP server lists and runs its tools.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
@@ -25,6 +26,8 @@ trap cleanup EXIT
 # Nothing of the caller's settings may leak into the test.
 for v in $(env | sed -n 's/^\(JAMAI_[A-Z0-9_]*\|GMUSIC_[A-Z0-9_]*\)=.*/\1/p'); do unset "$v"; done
 export JAMAI_CONFIG_DIR="$T/config"
+export JAMAI_MUSESCORE_PLUGINS_DIR="$T/msplugins"
+export JAMAI_MUSESCORE_LIVE_PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
 export JAMAI_BIN="$T/bin"
 export PATH="$T/bin:$PATH"
 
@@ -233,6 +236,17 @@ check "--gain-db refuses a word" bash -c "! jamai-render --gain-db loud '$ROOT/e
 jamai-publish-melody --gain-db 3 --no-announce "$ROOT/examples/first-light.abc" > /dev/null 2>&1
 check "the manifest records the gain" test "$(jq -r '.[] | select(.slug == "first-light") | .gain_db' "$T/site/melody/melodies.json")" = 3
 
+echo "── live MuseScore (a stand-in on its own port, never the real one)"
+python3 "$ROOT/tests/fake_musescore.py" "$JAMAI_MUSESCORE_LIVE_PORT" "$T/live.log" > "$T/fake-ms.log" 2>&1 & PIDS+=($!)
+jamai-musescore --install-plugin > "$T/plugin.out" 2>&1
+check "--install-plugin puts the plugin in MuseScore's plugins folder" cmp -s "$ROOT/musescore/musescore-mcp-websocket.qml" "$T/msplugins/musescore-mcp-websocket.qml"
+check "a second run leaves it and says so" bash -c "jamai-musescore --install-plugin | grep -q 'already installed'"
+check "the stand-in answers" wait_for "jamai-musescore --live ping"
+check "--live ping gets pong" bash -c "jamai-musescore --live ping | jq -e '.result == \"pong\"'"
+check "--live sends an action with its params" bash -c "jamai-musescore --live addNote '{\"pitch\":60,\"duration\":{\"numerator\":1,\"denominator\":4}}' >/dev/null && tail -n1 '$T/live.log' | jq -e '.action == \"addNote\" and .params.pitch == 60 and .params.duration.denominator == 4'"
+quiet_port="$(free_port)"
+check "with nothing listening, it says how to start the plugin (exit 3)" bash -c "JAMAI_MUSESCORE_LIVE_PORT=$quiet_port jamai-musescore --live ping 2>&1 | grep -q 'Plugins → MuseScore API Server'; test \${PIPESTATUS[0]} -eq 3"
+
 echo "── mcp"
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"selftest","version":"0"}}}' \
@@ -242,14 +256,20 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"jamai_chords","arguments":{"midi_path":"'"$T/site/melody/second-light.mid"'","beats_per_bar":3}}}' \
   '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"no_such_tool","arguments":{}}}' \
   '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"jamai_legacy_list","arguments":{}}}' \
+  '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"musescore_live_status","arguments":{}}}' \
+  '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"setTempo","params":{"bpm":72}}}}' \
+  '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"rm"}}}' \
   | jamai-mcp > "$T/mcp.out" 2> "$T/mcp.err"
 check "mcp answers initialize" bash -c "sed -n 1p '$T/mcp.out' | jq -e '.result.serverInfo.name == \"jamai-core\"'"
-check "mcp lists 11 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 11'"
+check "mcp lists 14 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 14'"
 check "mcp lists the melodies" bash -c "sed -n 3p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"second-light\"))'"
 check "mcp names chords from a MIDI file" bash -c "sed -n 4p '$T/mcp.out' | jq -e '.result.isError == false'"
 check "mcp refuses an unknown tool" bash -c "sed -n 5p '$T/mcp.out' | jq -e '.error.code == -32601'"
 check "mcp lists the legacy sessions" bash -c "sed -n 6p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"Old Session Theme\"))'"
-check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 6
+check "mcp finds MuseScore listening" bash -c "sed -n 7p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"MuseScore is listening\"))'"
+check "mcp changes the tempo in the open score" bash -c "sed -n 8p '$T/mcp.out' | jq -e '.result.isError == false' >/dev/null && tail -n1 '$T/live.log' | jq -e '.action == \"setTempo\" and .params.bpm == 72'"
+check "mcp refuses an action MuseScore does not know" bash -c "sed -n 9p '$T/mcp.out' | jq -e '.result.isError == true'"
+check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 9
 
 echo "── package"
 check "no house value in the packaged code" bash -c "! grep -rIn -E '/home/gmusic|gmusicassembly\.com|ferret-harmonic|tail3b11eb|192\.168\.[0-9]+\.[0-9]+' '$ROOT/bin' '$ROOT/lib' '$ROOT/publish' '$ROOT/render' '$ROOT/mcp' '$ROOT/listen' '$ROOT/workshop' '$ROOT/broadcast' '$ROOT/moments' '$ROOT/install.sh' '$ROOT/settings' '$ROOT/claude'"

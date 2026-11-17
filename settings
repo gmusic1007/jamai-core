@@ -22,6 +22,8 @@ JAMAI_STATE_DIR | quiet | ~/.local/state/jamai | Facts ledger, hub data and rend
 JAMAI_SOUNDFONT | ask | /usr/share/sounds/sf2/FluidR3_GM.sf2 | General MIDI soundfont that FluidSynth plays through.
 JAMAI_GAIN_DB | quiet | 0 | Gain in dB for jamai-render and jamai-publish-melody. Linear, no limiter: +10 can clip a loud piece.
 JAMAI_MUSESCORE_BIN | quiet | | MuseScore program for jamai-musescore. Empty: the first one found on your PATH.
+JAMAI_MUSESCORE_PLUGINS_DIR | quiet | | MuseScore's plugins folder. Empty: the one MuseScore's own settings name, else ~/Documents/MuseScore4/Plugins.
+JAMAI_MUSESCORE_LIVE_PORT | quiet | 8765 | Port of the live-control plugin. The plugin fixes it at 8765: change it only for tests.
 
 # ── Legacy: ABC sessions written before the package ──────────────────
 JAMAI_LEGACY_DIRS | ask | | Folders holding older ABC sessions, separated by ':'. Empty: name a folder each time.

@@ -39,8 +39,17 @@ package that brings it, and what stops working without it.
 | "a video of the score" | `jamai-scroll.py` (scrolls left to right, red playhead) or `jamai-score-video.py` (one system at a time) |
 | "what did we write before?" | `jamai-legacy list <folder>` |
 | "open it in MuseScore" | `jamai-musescore file.abc` (`--no-open` to convert only) |
+| "change it in MuseScore while I watch" | `musescore_live_status`, then `musescore_live` (or `jamai-musescore --live <action>`) |
 | "publish it" | `jamai-publish-melody` |
 | "who receives my music?" | `jamai-hub subscriptions` |
+
+## Changing the score open in MuseScore
+
+When the person has MuseScore open with the plugin running, `musescore_live` changes their score as
+they watch. Check first with `musescore_live_status`; if it is not listening, tell the person the two
+clicks it names, do not guess. Read with `musescore_get_score` before writing. Move with `goToMeasure`,
+then `addNote` / `addRest`, which advance the cursor. Every change can be reversed with `undo`, and the
+person can press Ctrl+Z. Change only what was asked.
 
 ## Publishing and subscribers
 
