@@ -41,7 +41,7 @@ DEBIT="${JAMAI_SAY_RATE:--5%}"
 GARDER=0
 CATT="${CATT:-$HOME/.local/bin/catt}"
 EDGE="${EDGE_TTS:-$(command -v edge-tts || echo /opt/anaconda3/bin/edge-tts)}"
-VOIXDIR="$HOME/.local/state/jamai-cast/voix"   # JAMAIS sous ~/Recordings-jamai
+VOIXDIR="${JAMAI_CAST_STATE:-$HOME/.local/state/jamai-cast}/voix"   # JAMAIS sous ~/Recordings-jamai
 
 die(){ printf '✗ %s\n' "$*" >&2; exit 1; }
 
@@ -68,6 +68,11 @@ FIN
 fi
 TEXTE="${1:-}"
 [ -n "$TEXTE" ] || die "quoi dire ? (jamai-say \"…\")"
+# catt wants the exact name. "Bathroom" is found as "Bathroom speaker", before any synthesis.
+. "$_here/../lib/jamai-devices.sh"
+RESOLU="$(jamai_device_resolve "$DEVICE")" || exit 2
+[ "$RESOLU" = "$DEVICE" ] || printf '  « %s » → %s\n' "$DEVICE" "$RESOLU"
+DEVICE="$RESOLU"
 [ -x "$EDGE" ] || die "edge-tts introuvable"
 
 mkdir -p "$VOIXDIR"
@@ -91,6 +96,10 @@ PID=$!
 
 # Piege n°4 : insister jusqu'a voir un temps qui avance.
 for i in $(seq 1 12); do
+  # catt has already refused: say why now, instead of polling twelve times.
+  if grep -q '^Error' "$VOIXDIR/dernier-cast.log" 2>/dev/null; then
+    printf '✗ catt : %s\n' "$(tr '\n' ' ' <"$VOIXDIR/dernier-cast.log")"; exit 1
+  fi
   ETAT=$(timeout 25 "$CATT" -d "$DEVICE" status 2>/dev/null)
   T=$(printf '%s' "$ETAT" | sed -n 's/^Time: \([0-9:]*\) .*/\1/p' | head -1)
   if printf '%s' "$ETAT" | grep -q 'State: PLAYING' && [ -n "$T" ] && [ "$T" != "00:00:00" ]; then

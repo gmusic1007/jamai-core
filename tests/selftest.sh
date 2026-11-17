@@ -190,12 +190,33 @@ check "the legacy session publishes" grep -q 'https://music.example.org/melody/o
 check "and is announced as a new melody" test "$(tail -n1 "$T/state/events/ledger.jsonl" | jq -r '.type + " " + .slug')" = "melody.published old-session-theme"
 
 echo "── fixed defects (gmusic1007/jamai-core#4)"
-JAMAI_SAY_DEVICE= EDGE_TTS="$T/no-such-edge-tts" jamai-say -d "Test speaker" "hello" > "$T/say.out" 2>&1; say_rc=$?
-check "jamai-say reads -d (it reaches the voice step, exit 1, not the device refusal, exit 2)" bash -c "test $say_rc -eq 1 && grep -q 'edge-tts' '$T/say.out'"
+# A fake catt and a fake voice: these checks reach no speaker and no network.
+export JAMAI_CAST_STATE="$T/cast-state"
+mkdir -p "$T/fake"
+ffmpeg -nostats -loglevel error -f lavfi -i anullsrc=r=44100:cl=mono -t 1 -q:a 9 "$T/fake/one-second.mp3"
+printf '%s\n' '#!/usr/bin/env bash' \
+  "echo \"\$*\" >> '$T/fake/catt.log'" \
+  'case "$*" in' \
+  "  scan) printf 'Scanning Chromecasts...\n10.0.0.2 - Bathroom speaker - Google Home Mini\n10.0.0.3 - Kitchen Tv - Google Cast Group\n10.0.0.4 - kitchen speaker - Google Home\n10.0.0.5 - bed - Google Cast Group\n10.0.0.6 - Bedroom speaker - Google Nest Mini\n10.0.0.7 - Television - Chromecast\n' ;;" \
+  "  *status*) printf 'Time: 00:00:01 / 00:00:01 (100%%)\nState: PLAYING\n' ;;" \
+  'esac' > "$T/fake/catt"
+printf '%s\n' '#!/usr/bin/env bash' \
+  "while [ \$# -gt 0 ]; do case \"\$1\" in --write-media) cp '$T/fake/one-second.mp3' \"\$2\"; shift 2 ;; *) shift ;; esac; done" > "$T/fake/edge-tts"
+chmod +x "$T/fake/catt" "$T/fake/edge-tts"
+say() { JAMAI_SAY_DEVICE= CATT="$T/fake/catt" EDGE_TTS="$T/fake/edge-tts" jamai-say "$@"; }
+say -d Bathroom "hello" > "$T/say.out" 2>&1; say_rc=$?
+check "jamai-say -d Bathroom finds \"Bathroom speaker\" and plays" bash -c "test $say_rc -eq 0 && grep -q 'Bathroom » → Bathroom speaker' '$T/say.out' && grep -q 'PREUVE' '$T/say.out'"
+check "catt received the exact name" grep -q -- '^-d Bathroom speaker cast ' "$T/fake/catt.log"
+check "the device names were cached in JAMAI_CAST_STATE" test -s "$T/cast-state/appareils.txt"
+check "an exact name wins over a longer one (bed, not Bedroom speaker)" bash -c "export JAMAI_CAST_STATE='$T/cast-state' CATT='$T/fake/catt'; . '$ROOT/lib/jamai-devices.sh'; test \"\$(jamai_device_resolve bed)\" = bed"
+say -d kitchen "hello" > "$T/say-kitchen.out" 2>&1; say_rc=$?
+check "a name that fits two devices is refused, naming both (exit 2)" bash -c "test $say_rc -eq 2 && grep -q 'plusieurs appareils.*Kitchen Tv' '$T/say-kitchen.out' && grep -q 'kitchen speaker' '$T/say-kitchen.out'"
+say -d garage "hello" > "$T/say-garage.out" 2>&1; say_rc=$?
+check "an unknown name is refused with the names seen (exit 2)" bash -c "test $say_rc -eq 2 && grep -q 'Vus : .*Television' '$T/say-garage.out'"
 JAMAI_SAY_DEVICE= jamai-say "hello" > /dev/null 2>&1; say_rc=$?
 check "jamai-say without a device still refuses (exit 2)" test "$say_rc" -eq 2
-JAMAI_CAST_DEVICE= jamai-cast -d "Test screen" > "$T/cast.out" 2>&1; cast_rc=$?
-check "jamai-cast reads -d (it asks for a page, exit 1, not the device refusal, exit 2)" test "$cast_rc" -eq 1
+JAMAI_CAST_DEVICE= CATT="$T/fake/catt" jamai-cast -d telev > "$T/cast.out" 2>&1; cast_rc=$?
+check "jamai-cast -d telev finds Television, then asks for a page (exit 1)" bash -c "test $cast_rc -eq 1 && grep -q 'telev » → Television' '$T/cast.out'"
 JAMAI_CAST_DEVICE= jamai-cast > /dev/null 2>&1; cast_rc=$?
 check "jamai-cast without a device still refuses (exit 2)" test "$cast_rc" -eq 2
 printf 'X:1\nT:Two Instruments\nM:4/4\nL:1/4\nQ:1/4=100\nK:C\nV:1\n%%%%MIDI program 24\nCDEF|G4|]\nV:2\n%%%%MIDI program 42\nC,4|C,4|]\n' > "$T/instruments.abc"

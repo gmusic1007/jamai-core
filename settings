@@ -48,6 +48,7 @@ JAMAI_HUB_ADMIN_TOKEN | secret | generate | Token for the hub's admin routes. En
 # ── Broadcast: a screen and a speaker (optional) ─────────────────────
 JAMAI_CAST_DEVICE | ask | | Chromecast screen that jamai-cast shows pages on. Empty: name it each time with -d.
 JAMAI_CAST_PORT | quiet | 8899 | Port jamai-cast serves the page from.
+JAMAI_CAST_STATE | quiet | ~/.local/state/jamai-cast | Cache of device names, and the spoken files of jamai-say.
 JAMAI_SAY_DEVICE | ask | | Chromecast speaker that jamai-say speaks on.
 JAMAI_SAY_VOICE | ask | fr-CA-SylvieNeural | edge-tts voice for jamai-say. `edge-tts --list-voices` shows the others.
 GMUSIC_MOMENTS | quiet | ~/.config/gmusic-routine/moments | Folder of moments read by `routine`.

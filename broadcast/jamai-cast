@@ -55,8 +55,16 @@ FIN
   exit 2
 fi
 
+# catt wants the exact name. "Tele" is found as "Television".
+if [ -n "$DEVICE" ]; then
+  . "$_here/../lib/jamai-devices.sh"
+  RESOLU="$(jamai_device_resolve "$DEVICE")" || exit 2
+  [ "$RESOLU" = "$DEVICE" ] || printf '  « %s » → %s\n' "$DEVICE" "$RESOLU"
+  DEVICE="$RESOLU"
+fi
+
 WEB="$HOME/.local/share/jamai-cast/web"
-STATE="$HOME/.local/state/jamai-cast"
+STATE="${JAMAI_CAST_STATE:-$HOME/.local/state/jamai-cast}"
 HTTPLOG="$STATE/http.log"
 CACHE="$STATE/appareils.txt"
 CATT="${CATT:-$HOME/.local/bin/catt}"
