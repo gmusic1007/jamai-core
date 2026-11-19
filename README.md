@@ -9,6 +9,20 @@ was born: one command, and it asks for every setting it needs.
 
 ## Install
 
+**With apt** (Debian, Ubuntu): it brings the system programs too, and `sudo apt upgrade` brings
+each new version.
+
+```bash
+curl -fsSL https://apt.gmusicassembly.com/setup.sh | sudo bash
+sudo apt install jamai
+jamai setup
+```
+
+The first line runs once. It adds the JamAI repository and its signing key, after checking the key
+is the right one: `53A00775B61CAA93A047C92C1BA4BD935B04BE3C`. The steps by hand, and every version
+published: [apt.gmusicassembly.com](https://apt.gmusicassembly.com). Until 0.4.1 the package was
+called `jamai-core`; `jamai` replaces it.
+
 **One line, no root needed** (Linux or macOS with bash and git):
 
 ```bash
@@ -17,14 +31,6 @@ curl -fsSL https://raw.githubusercontent.com/gmusic1007/jamai-core/main/install.
 
 It clones the repository into `~/.local/share/jamai-core`, asks its questions on your terminal, and
 links the commands into `~/.local/bin`. Then `jamai doctor` names any system program still missing.
-
-**With apt** (Debian, Ubuntu): the package brings the system programs too.
-
-```bash
-curl -fsSLO https://github.com/gmusic1007/jamai-core/releases/download/v0.4.1/jamai-core_0.4.1_all.deb
-sudo apt install ./jamai-core_0.4.1_all.deb
-jamai setup
-```
 
 **From a clone**, to change the code:
 
