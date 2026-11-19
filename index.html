@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JamAI apt repository</title>
+<style>
+:root{--bg:#0c0f14;--soft:#141923;--ink:#e8eef7;--dim:#93a0b2;--accent:#f0a868;--accent2:#8bd0c4;--line:#2a3a50}
+@media (prefers-color-scheme: light){:root{--bg:#f7f4ee;--soft:#fffdf8;--ink:#1c2430;--dim:#586273;--accent:#a8551a;--accent2:#1f6f66;--line:#d8d1c3}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto;padding:2.4rem 16px 4rem}
+h1{font-size:1.9rem;margin:.3rem 0} h2{font-size:1.15rem;margin:2rem 0 .4rem}
+a{color:var(--accent2)} .dim{color:var(--dim)}
+pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;overflow-x:auto;font-size:.88rem}
+code{font-family:"JetBrains Mono",Menlo,Consolas,monospace}
+.glyphs{color:var(--accent);letter-spacing:.2rem}
+</style>
+</head>
+<body><div class="wrap">
+<div class="glyphs">🎸</div>
+<h1>JamAI apt repository</h1>
+<p class="dim">Write music in ABC notation, hear it, publish it, and let an AI agent work in your MuseScore score.
+<a href="https://github.com/gmusic1007/jamai-core">Source and documentation</a>.</p>
+
+<h2>Install on Debian or Ubuntu</h2>
+<pre><code>curl -fsSL https://apt.gmusicassembly.com/setup.sh | sudo bash
+sudo apt install jamai</code></pre>
+<p>The first line runs once: it adds this repository and its signing key. After that, <code>sudo apt upgrade</code> brings each new version.</p>
+
+<h2>Or by hand, step by step</h2>
+<pre><code>sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://apt.gmusicassembly.com/jamai.gpg | sudo tee /etc/apt/keyrings/jamai.gpg &gt; /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/jamai.gpg] https://apt.gmusicassembly.com stable main" | sudo tee /etc/apt/sources.list.d/jamai.list
+sudo apt update &amp;&amp; sudo apt install jamai</code></pre>
+
+<h2>Signing key</h2>
+<p>G.Music Assembly (JamAI apt repository)<br><code>53A00775B61CAA93A047C92C1BA4BD935B04BE3C</code><br>
+<a href="jamai.asc">jamai.asc</a> · <a href="jamai.gpg">jamai.gpg</a></p>
+
+<h2>Versions here</h2>
+<ul><li><code>0.4.2</code></li></ul>
+
+<h2>Then</h2>
+<pre><code>jamai setup
+jamai-musescore --install-musescore     # optional: MuseScore, for scores and live editing</code></pre>
+</div></body>
+</html>

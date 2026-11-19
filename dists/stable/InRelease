@@ -1,0 +1,55 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: all amd64 arm64
+Codename: stable
+Components: main
+Date: Thu, 19 Nov 2026 20:56:19 +0000
+Description: JamAI: write, hear, publish and share music
+Label: JamAI
+Origin: G.Music Assembly
+Suite: stable
+MD5Sum:
+ e352d13c8830230a570bb1ae143f39c9             1323 main/binary-all/Packages
+ fa023b321143dadbdc981d7b016b250e              851 main/binary-all/Packages.gz
+ e352d13c8830230a570bb1ae143f39c9             1323 main/binary-amd64/Packages
+ fa023b321143dadbdc981d7b016b250e              851 main/binary-amd64/Packages.gz
+ e352d13c8830230a570bb1ae143f39c9             1323 main/binary-arm64/Packages
+ fa023b321143dadbdc981d7b016b250e              851 main/binary-arm64/Packages.gz
+SHA1:
+ 37cce0bedaa72d8e5d734467253bfec4fc7c5638             1323 main/binary-all/Packages
+ b0c81fa0856c4fa4c6c731a69f740c9d2e204417              851 main/binary-all/Packages.gz
+ 37cce0bedaa72d8e5d734467253bfec4fc7c5638             1323 main/binary-amd64/Packages
+ b0c81fa0856c4fa4c6c731a69f740c9d2e204417              851 main/binary-amd64/Packages.gz
+ 37cce0bedaa72d8e5d734467253bfec4fc7c5638             1323 main/binary-arm64/Packages
+ b0c81fa0856c4fa4c6c731a69f740c9d2e204417              851 main/binary-arm64/Packages.gz
+SHA256:
+ a144bcb25e285d17c0a6e234780444fb70cb608ba1f381274dbdd613b72cb885             1323 main/binary-all/Packages
+ 15c95737111b2359932a2edabea40f18bb17646c33eb4edf6975352e2b5897f1              851 main/binary-all/Packages.gz
+ a144bcb25e285d17c0a6e234780444fb70cb608ba1f381274dbdd613b72cb885             1323 main/binary-amd64/Packages
+ 15c95737111b2359932a2edabea40f18bb17646c33eb4edf6975352e2b5897f1              851 main/binary-amd64/Packages.gz
+ a144bcb25e285d17c0a6e234780444fb70cb608ba1f381274dbdd613b72cb885             1323 main/binary-arm64/Packages
+ 15c95737111b2359932a2edabea40f18bb17646c33eb4edf6975352e2b5897f1              851 main/binary-arm64/Packages.gz
+SHA512:
+ be499eda83637d6bd27e79e8a26a97123386d5df2b09e5939acf34b8a139f60510a427498de24e0eb477e84bf907465ffa87dc5b0725e5322241aded73a05cb4             1323 main/binary-all/Packages
+ 412f176ac8b757dc9536dad4a5bc5ed7ad36c267819befb7136d767ae832d8abbecd4030ed6f02b0bdbd9d5f4e276bbaef2d5e65963289e1d22c662232815a81              851 main/binary-all/Packages.gz
+ be499eda83637d6bd27e79e8a26a97123386d5df2b09e5939acf34b8a139f60510a427498de24e0eb477e84bf907465ffa87dc5b0725e5322241aded73a05cb4             1323 main/binary-amd64/Packages
+ 412f176ac8b757dc9536dad4a5bc5ed7ad36c267819befb7136d767ae832d8abbecd4030ed6f02b0bdbd9d5f4e276bbaef2d5e65963289e1d22c662232815a81              851 main/binary-amd64/Packages.gz
+ be499eda83637d6bd27e79e8a26a97123386d5df2b09e5939acf34b8a139f60510a427498de24e0eb477e84bf907465ffa87dc5b0725e5322241aded73a05cb4             1323 main/binary-arm64/Packages
+ 412f176ac8b757dc9536dad4a5bc5ed7ad36c267819befb7136d767ae832d8abbecd4030ed6f02b0bdbd9d5f4e276bbaef2d5e65963289e1d22c662232815a81              851 main/binary-arm64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEU6AHdbYcqpOgR8ksG6S9k1sEvjwFAmr/YnMACgkQG6S9k1sE
+vjxhXg//aMAb7xwcWhWxDT667SlOt207uNxdNYyMXrJgjKzstBGKyj7dAx+umJ8W
+n05+AGNUhAffx7iPzl4b8tS9+aCdRC6Kze47AvFrVIOmLUKMieZVQb2ZOrebmUoL
+BwtgaUjkCsqI4xA9URfaLCvtbFZ+eXK+vOY8glBml/reca/HIUOOA4ot5vDapWJn
+VdDF8yNYa+01Oj+euqaEprCKLuRuNKCQ5Xqj6NdyoVfZUTsi5M8Op02MGu+pXDuN
+/mqk0mwY+gGEan2TXXLAKaoMXorbgmrZhVrKnF9KNehBajKY+1uQmyciWriKEPfu
+PGfY+/z6cAOfhsYNRKHxNWRMYC7YMNYoyJmhsDRmLCY2IkCvYlxzgY6n5VdfJrPm
+V0kEJASVFc7I5pOqoQBNdX+JcWvgVPTtpzu3dlETVeJA2tnqZ09yyu1h3uo42Prj
+AH2LJ9+hmvfI4EwynP2+8Z31X/LaeeAT2sdjD2qRDVgbTBzjCakcwlpOkbRaQTaF
+YBLpL+heideCBey2RxsUCsweQOV48iQCGA2e/pWWoVZc4pm//TP+3/NtfzFPmkjA
+/XP81pKyhE1Pvxf6PqBbEyYfM3jxEXl20SDYwlpCRSaSutnSgAsjCgMOYzBaSNRH
+wwe555/9BtUwJMbSG8UM35FQEHtTzcdtSefMs9SSXBWNadEOqKo=
+=RMuV
+-----END PGP SIGNATURE-----
