@@ -73,7 +73,7 @@ cat > "$STAGE/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
 if [ "$1" = configure ]; then
-  echo "jamai-core is installed. Each person runs, once:  jamai setup   then:  jamai doctor"
+  echo "jamai is installed. Each person runs, once:  jamai setup   then:  jamai doctor"
 fi
 exit 0
 EOF
