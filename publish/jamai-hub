@@ -248,7 +248,7 @@ def deliver_due():
         # A subscription receives what is announced after it. The line is drawn by position in
         # the ledger, not by the clock: two stamps one second apart cannot be ordered reliably.
         anchor = sub.get("after_fact")
-        if anchor is None:
+        if not anchor:                         # None, or "" = subscribed on an empty ledger: all of it
             start = 0
         elif anchor in ids:
             start = len(ids) - ids[::-1].index(anchor)

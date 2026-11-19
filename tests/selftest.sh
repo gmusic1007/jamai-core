@@ -168,6 +168,21 @@ check "a private LAN target is refused" test "$(code '{"url":"https://192.168.1.
 check "a plain http target is refused" test "$(code '{"url":"http://93.184.216.34/hook"}')" = 400
 check "an unknown event type is refused" test "$(code '{"url":"https://93.184.216.34/hook","events":["everything"]}')" = 400
 
+echo "── hub, first subscriber on an empty ledger"
+# A fresh install: someone subscribes before any melody exists. Their anchor is "".
+EMPTY_PORT="$(free_port)"
+JAMAI_STATE_DIR="$T/state-empty" JAMAI_MELODY_DIR="$T/site-empty/melody" \
+JAMAI_HUB_ALLOW_PRIVATE_TARGETS=1 JAMAI_HUB_OPEN_SUBSCRIPTIONS=1 \
+  jamai-hub serve --port "$EMPTY_PORT" > "$T/hub-empty.log" 2>&1 & PIDS+=($!)
+E="http://127.0.0.1:$EMPTY_PORT"
+check "the hub on an empty ledger answers" wait_for "curl -fsS $E/healthz"
+EMPTY_ID="$(curl -s -X POST -H 'Content-Type: application/json' -d "{\"url\":\"http://127.0.0.1:$RCV_PORT/empty\"}" "$E/api/subscriptions" | jq -r '.id // empty')"
+check "a subscription is accepted before any melody exists" test -n "$EMPTY_ID"
+rm -f "$T/received"/*.json
+JAMAI_STATE_DIR="$T/state-empty" JAMAI_MELODY_DIR="$T/site-empty/melody" \
+  jamai-publish-melody "$ROOT/examples/first-light.abc" > "$T/publish-empty.log" 2>&1
+check "the first melody reaches the first subscriber" wait_for "test \$(ls '$T/received' | wc -l) -ge 1" 60
+
 echo "── legacy sessions and MuseScore"
 mkdir -p "$T/legacy/2025/notes" "$T/legacy/node_modules/x"
 printf 'An older session. Free text sits above the tune, as in the real files.\n\n%% a comment\nX:1\nT:Old Session Theme\nC:an earlier agent\nM:6/8\nL:1/8\nQ:3/8=80\nK:Am\n|: A2 c e2 c | d2 B G2 B | A2 c e2 a | g3 e3 | f2 d B2 d | e2 c A2 c | B2 G E2 G | A6 :|\n' > "$T/legacy/2025/251017_old_session.abc"
