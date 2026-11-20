@@ -182,6 +182,14 @@ rm -f "$T/received"/*.json
 JAMAI_STATE_DIR="$T/state-empty" JAMAI_MELODY_DIR="$T/site-empty/melody" \
   jamai-publish-melody "$ROOT/examples/first-light.abc" > "$T/publish-empty.log" 2>&1
 check "the first melody reaches the first subscriber" wait_for "test \$(ls '$T/received' | wc -l) -ge 1" 60
+# The anchor of a second subscription leaves the ledger (rotated): later melodies must still reach it.
+curl -s -o /dev/null -X POST -H 'Content-Type: application/json' -d "{\"url\":\"http://127.0.0.1:$RCV_PORT/lost\"}" "$E/api/subscriptions"
+: > "$T/state-empty/events/ledger.jsonl"
+rm -f "$T/received"/*.json
+JAMAI_STATE_DIR="$T/state-empty" JAMAI_MELODY_DIR="$T/site-empty/melody" \
+  jamai-publish-melody "$T/second.abc" > "$T/publish-lost.log" 2>&1
+# Both subscriptions receive it: the first one's anchor is "", the second one's was rotated away.
+check "a subscription whose anchor left the ledger still receives what follows" wait_for "test \$(grep -l second-light '$T/received'/*.json | wc -l) -ge 2" 60
 
 echo "── legacy sessions and MuseScore"
 mkdir -p "$T/legacy/2025/notes" "$T/legacy/node_modules/x"

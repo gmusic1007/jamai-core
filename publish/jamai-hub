@@ -236,14 +236,32 @@ def delivery_index():
     return index
 
 
+SEEN = set()                                   # the fact ids in the ledger at the previous delivery pass
+
+
+def reanchor(sub, lost, last_seen):
+    """Move a subscription whose anchor fact left the ledger to last_seen ("" = the start)."""
+    with locked():
+        subs = read_json(SUBS_FILE, {})
+        kept = subs.get(sub["id"])
+        if kept and kept.get("after_fact") == lost:
+            kept["after_fact"] = last_seen
+            write_json(SUBS_FILE, subs)
+    sub["after_fact"] = last_seen
+    print("jamai-hub: %s lost its anchor %s; it now receives what follows %s"
+          % (sub["id"], lost, last_seen or "the start of the ledger"), file=sys.stderr, flush=True)
+
+
 def deliver_due():
+    global SEEN
+    all_facts = facts()
+    ids = [f["id"] for f in all_facts]
+    seen, SEEN = SEEN, set(ids)
     subs = read_json(SUBS_FILE, {})
     if not subs:
         return 0
     index = delivery_index()
-    all_facts = facts()
     sent = 0
-    ids = [f["id"] for f in all_facts]
     for sub in subs.values():
         # A subscription receives what is announced after it. The line is drawn by position in
         # the ledger, not by the clock: two stamps one second apart cannot be ordered reliably.
@@ -253,7 +271,13 @@ def deliver_due():
         elif anchor in ids:
             start = len(ids) - ids[::-1].index(anchor)
         else:
-            start = len(ids)                   # the anchor is gone: send nothing rather than everything
+            # The anchor left the ledger (rotated or edited). Start after the last fact the hub
+            # had already seen at its previous pass: what was announced since still arrives, and
+            # nothing older is sent again. With no previous pass (the hub just started), start
+            # after the last fact there. The new anchor is kept, so later facts reach it too.
+            start = next((i + 1 for i in range(len(ids) - 1, -1, -1) if ids[i] in seen),
+                         0 if seen else len(ids))
+            reanchor(sub, anchor, ids[start - 1] if start else "")
         for fact in all_facts[start:]:
             if fact["type"] not in sub.get("events", EVENT_TYPES):
                 continue
