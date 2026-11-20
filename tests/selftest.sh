@@ -271,6 +271,9 @@ check "--gain-db 6 makes the render 6 dB louder (measured: $diff_db dB)" awk -v 
 check "--gain-db refuses a word" bash -c "! jamai-render --gain-db loud '$ROOT/examples/first-light.abc' > /dev/null 2>&1"
 jamai-publish-melody --gain-db 3 --no-announce "$ROOT/examples/first-light.abc" > /dev/null 2>&1
 check "the manifest records the gain" test "$(jq -r '.[] | select(.slug == "first-light") | .gain_db' "$T/site/melody/melodies.json")" = 3
+# jamai-say --help used to speak the word "--help". A speaker is named, and catt and edge-tts are
+# /bin/false, so even a regression cannot reach a device.
+check "jamai-say --help prints its usage and speaks nothing" bash -c "JAMAI_SAY_DEVICE=nowhere JAMAI_CAST_STATE='$T/cast' CATT=/bin/false EDGE_TTS=/bin/false jamai-say --help | grep -q '^Usage'"
 
 echo "── live MuseScore (a stand-in on its own port, never the real one)"
 python3 "$ROOT/tests/fake_musescore.py" "$JAMAI_MUSESCORE_LIVE_PORT" "$T/live.log" > "$T/fake-ms.log" 2>&1 & PIDS+=($!)

@@ -39,6 +39,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -d) DEVICE="${2:?-d needs a device name}"; shift 2 ;;
     -p) PORT="${2:?-p needs a port}"; shift 2 ;;
+    -h|--help) sed -n '2,/^set -uo/p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set -uo/d'; exit 0 ;;
     *) _rest+=("$1"); shift ;;
   esac
 done

@@ -87,6 +87,7 @@ create() {
 }
 
 [ $# -ge 1 ] || { list; exit 0; }
+case "$1" in -h|--help) sed -n '2,/^set -euo/p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set -euo/d'; exit 0 ;; esac
 [ "$1" = "new" ] && { shift; create "$@"; exit 0; }
 
 WANTED="$1"; shift
