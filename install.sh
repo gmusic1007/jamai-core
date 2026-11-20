@@ -36,7 +36,7 @@ TOOLS=(bin/jamai
        listen/jamai-measure.py listen/jamai-grille.py
        render/jamai-render render/jamai-musescore render/jamai-tab.py render/jamai-score-video.py render/jamai-scroll.py
        publish/jamai-publish-melody publish/jamai-hub
-       workshop/jamai-unread.py workshop/jamai-related.py workshop/jamai-follow-fork workshop/jamai-legacy
+       workshop/jamai-legacy
        broadcast/jamai-cast broadcast/jamai-say
        moments/routine
        mcp/jamai-mcp)
