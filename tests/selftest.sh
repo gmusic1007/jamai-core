@@ -59,6 +59,8 @@ check "the token is not in jamai.env" bash -c "! grep -q TOKEN '$T/config/jamai.
 jamai config set JAMAI_STATE_DIR "$T/state" >/dev/null
 check "config get reads the file" test "$(jamai config get JAMAI_PUBLIC_BASE)" = "https://music.example.org/melody"
 check "config show hides the secret" bash -c "jamai config show | grep JAMAI_HUB_ADMIN_TOKEN | grep -q hidden"
+check "config get hides the secret" test "$(jamai config get JAMAI_HUB_ADMIN_TOKEN 2>/dev/null)" = "(set, hidden)"
+check "config get --reveal prints the secret" bash -c "test \"\$(jamai config get JAMAI_HUB_ADMIN_TOKEN --reveal)\" = \"\$(sed -n 's/^JAMAI_HUB_ADMIN_TOKEN=//p' '$T/config/secrets.env')\""
 check "the environment wins over the file" test "$(JAMAI_HUB_PORT=1234 jamai config get JAMAI_HUB_PORT)" = 1234
 check "an undeclared name is refused" bash -c "! jamai config set NOT_DECLARED x"
 jamai doctor > "$T/doctor.log" 2>&1; doctor_rc=$?

@@ -3,7 +3,7 @@
 #
 #   jamai setup [--yes]          ask each setting and write the config (--yes: no questions)
 #   jamai config show            every setting, its value and where the value comes from
-#   jamai config get NAME        one value
+#   jamai config get NAME        one value; a secret shows as hidden unless --reveal is added
 #   jamai config set NAME VALUE  write one value to jamai.env (a secret goes to secrets.env)
 #   jamai config unset NAME      remove one value from the config
 #   jamai config path            where the config lives
@@ -165,9 +165,20 @@ cmd_config() {
         printf '%-32s %-13s %s\n' "$name" "[$SOURCE]" "$shown"
       done ;;
     get)
-      name="${2:-}"; [ -n "$name" ] || die "usage: jamai config get NAME"
+      local reveal=0 arg; name=""
+      for arg in "${@:2}"; do
+        case "$arg" in --reveal) reveal=1 ;; -*) die "usage: jamai config get NAME [--reveal]" ;; *) name="$arg" ;; esac
+      done
+      [ -n "$name" ] || die "usage: jamai config get NAME [--reveal]"
       [ -n "${KIND[$name]+x}" ] || die "$name is not declared in $SETTINGS"
-      value_of "$name"; printf '%s\n' "$VALUE"; [ "$SOURCE" != unset ] ;;
+      value_of "$name"
+      # A secret, or anything kept in secrets.env, is hidden unless asked for by --reveal.
+      if [ "$reveal" -eq 0 ] && [ -n "$VALUE" ] && { is_secret "$name" || [ "$SOURCE" = secrets.env ]; }; then
+        echo "(set, hidden)"; echo "jamai: $name is hidden; add --reveal to print it" >&2
+      else
+        printf '%s\n' "$VALUE"
+      fi
+      [ "$SOURCE" != unset ] ;;
     set)
       name="${2:-}"; [ $# -ge 3 ] || die "usage: jamai config set NAME VALUE"
       [ -n "${KIND[$name]+x}" ] || die "$name is not declared in $SETTINGS"
