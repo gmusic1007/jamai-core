@@ -46,7 +46,7 @@ The installer does four things, in this order:
    public address, the hub's port, the screen and speaker names. Enter keeps the value shown in brackets.
 2. **Writes them** to `~/.config/jamai/jamai.env` (plain `KEY=VALUE`). The one secret, the hub's
    admin token, is generated and kept apart in `secrets.env`, mode 600.
-3. **Links the 21 commands** into the folder you chose (default `~/.local/bin`). A file already
+3. **Links the 18 commands** into the folder you chose (default `~/.local/bin`). A file already
    there is renamed `name.bak-<stamp>`, never deleted.
 4. **Runs `jamai doctor`**, which names each missing program, the package that brings it, and
    what stops working without it.
@@ -289,10 +289,7 @@ by name.
 | | `jamai-scroll.py` | score video scrolling left to right under a red playhead |
 | `publish/` | `jamai-publish-melody` | render a melody and add it to the melody page |
 | | `jamai-hub` | the melody page, subscriptions and webhook delivery |
-| `workshop/` | `jamai-unread.py` | recorder drops nobody has worked on yet |
-| | `jamai-related.py` | units that already speak of the same thing |
-| | `jamai-follow-fork` | follow a Claude session read-only |
-| | `jamai-legacy` | ABC sessions written before the package, ready to open or publish |
+| `workshop/` | `jamai-legacy` | ABC sessions written before the package, ready to open or publish |
 | `broadcast/` | `jamai-cast` | an HTML page on a Chromecast screen |
 | | `jamai-say` | a spoken sentence on a Chromecast speaker |
 | `moments/` | `routine` | a named moment of a house: its screen, speaker and posture |
