@@ -54,3 +54,31 @@ Description: write, hear, publish and share music from ABC notation
  .
  After installing, each person runs jamai setup once.
 
+Package: jamai
+Architecture: all
+Version: 0.4.4
+Priority: optional
+Section: sound
+Maintainer: gmusic1007 <204083825+gmusic1007@users.noreply.github.com>
+Installed-Size: 676
+Provides: jamai-core
+Depends: bash, python3, abcmidi, fluidsynth, fluid-soundfont-gm, lame, ffmpeg, jq, curl
+Recommends: abcm2ps, librsvg2-bin, imagemagick, python3-numpy, python3-scipy, python3-pil
+Breaks: jamai-core (<< 0.4.2)
+Replaces: jamai-core (<< 0.4.2)
+Filename: pool/main/j/jamai/jamai_0.4.4_all.deb
+Size: 124752
+MD5sum: 39dd5ae624704e556f2c9dce03bbc688
+SHA1: 2b7a0663dd2d1322daef42f43fd7928ac3890582
+SHA256: 176464d568fe8482fe5572350db058dd9df25d20a02696dfb21c5c8e416f7137
+SHA512: 76a959defbf2b775da2ce3cce80c5df45c28d4ae065d9ea183808a639d647c323bdc68f6bb480d6209c7a5eb0cac650e683049aee324059a05330723426df078
+Homepage: https://github.com/gmusic1007/jamai-core
+Description: write, hear, publish and share music from ABC notation
+ JamAI's composition workshop. Render ABC to MIDI, WAV, MP3 and an engraved
+ score, name the chords of a MIDI file or a recording, make score videos and
+ guitar tablature, publish melodies to a page of your own, and let people
+ subscribe to receive each new melody by signed webhook. Offers its tools to
+ AI agents as an MCP server and a Claude plugin.
+ .
+ After installing, each person runs jamai setup once.
+
