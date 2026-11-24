@@ -242,7 +242,7 @@ MuseScore {
 
     // jamai-core: the plugin's own version, so a client can tell this copy from an older one.
     function pluginVersion() {
-        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.4.2",
+        return { success: true, plugin: "musescore-mcp-websocket", variant: "jamai-core", version: "0.4.4",
                  actions: ["addDynamic", "addElement", "setScoreText", "newScore", "openScore", "saveScore", "version"] };
     }
 

@@ -146,7 +146,7 @@ Open the score you want to work on, then **Plugins → musescore-mcp-websocket**
 ### 5. Check that it answers
 
 ```bash
-jamai-musescore --live version     # "variant": "jamai-core", "version": "0.4.2"
+jamai-musescore --live version     # "variant": "jamai-core", "version": "0.4.4"
 jamai-musescore --live getScore    # what the open score holds
 ```
 
