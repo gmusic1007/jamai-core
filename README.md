@@ -46,7 +46,7 @@ The installer does four things, in this order:
    public address, the hub's port, the screen and speaker names. Enter keeps the value shown in brackets.
 2. **Writes them** to `~/.config/jamai/jamai.env` (plain `KEY=VALUE`). The one secret, the hub's
    admin token, is generated and kept apart in `secrets.env`, mode 600.
-3. **Links the 18 commands** into the folder you chose (default `~/.local/bin`). A file already
+3. **Links the 19 commands** into the folder you chose (default `~/.local/bin`). A file already
    there is renamed `name.bak-<stamp>`, never deleted.
 4. **Runs `jamai doctor`**, which names each missing program, the package that brings it, and
    what stops working without it.
@@ -294,6 +294,7 @@ by name.
 | | `jamai-say` | a spoken sentence on a Chromecast speaker |
 | `moments/` | `routine` | a named moment of a house: its screen, speaker and posture |
 | `mcp/` | `jamai-mcp` | the tools as an MCP server |
+| `suno/` | `jamai-suno` | a composition to a Suno song, through your own Suno account: `prepare`, `generate`, `tools`, `login`, `status` ([suno/README.md](suno/README.md)) |
 | `bin/` | `jamai` | setup, config, doctor |
 
 ## Proof

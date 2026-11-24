@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# jamai-suno — a JamAI composition → a Suno song, through the person's own Suno account.
+# The module sits beside this file: suno/jamai_suno.py. See suno/README.md.
+exec python3 "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/jamai_suno.py" "$@"

@@ -277,6 +277,7 @@ broadcast/  jamai-cast              an HTML page on a Chromecast screen
             jamai-say               a spoken sentence on a Chromecast speaker
 moments/    routine                 a named moment of the house: its screen, speaker and posture
 mcp/        jamai-mcp               the same tools as an MCP server for an agent
+suno/       jamai-suno              a composition to a Suno song, through your own Suno account
 EOF
 }
 

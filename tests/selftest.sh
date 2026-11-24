@@ -338,8 +338,12 @@ check "mcp sends a forte to the open score" bash -c "sed -n 10p '$T/mcp.out' | j
 check "the plugin answers every action the agent tool offers" bash -c "for a in \$(python3 -c \"import re; s=open('$ROOT/mcp/jamai-mcp').read(); print(' '.join(re.findall(r'\\\"([a-zA-Z]+)\\\"', s[s.index('LIVE_ACTIONS = ['):s.index(']', s.index('LIVE_ACTIONS = ['))])))\"); do grep -q \"case \\\"\$a\\\":\" '$ROOT/musescore/musescore-mcp-websocket.qml' || { echo missing \$a; exit 1; }; done"
 check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 10
 
+echo "── suno"
+check "jamai-suno answers --help through its link" bash -c "jamai-suno --help | grep -q 'prepare,generate,tools,login,status'"
+check "jamai-suno passes its tests against a local Suno mock" python3 "$ROOT/tests/test_suno.py"
+
 echo "── package"
-check "no house value in the packaged code" bash -c "! grep -rIn -E '/home/gmusic|gmusicassembly\.com|ferret-harmonic|tail3b11eb|192\.168\.[0-9]+\.[0-9]+' '$ROOT/bin' '$ROOT/lib' '$ROOT/publish' '$ROOT/render' '$ROOT/mcp' '$ROOT/listen' '$ROOT/workshop' '$ROOT/broadcast' '$ROOT/moments' '$ROOT/install.sh' '$ROOT/settings' '$ROOT/claude'"
+check "no house value in the packaged code" bash -c "! grep -rIn -E '/home/gmusic|gmusicassembly\.com|ferret-harmonic|tail3b11eb|192\.168\.[0-9]+\.[0-9]+' '$ROOT/bin' '$ROOT/lib' '$ROOT/publish' '$ROOT/render' '$ROOT/mcp' '$ROOT/listen' '$ROOT/workshop' '$ROOT/broadcast' '$ROOT/moments' '$ROOT/suno' '$ROOT/install.sh' '$ROOT/settings' '$ROOT/claude'"
 check "plugin manifests are valid JSON" bash -c "jq -e . '$ROOT/.claude-plugin/marketplace.json' '$ROOT/claude/jamai/.claude-plugin/plugin.json' '$ROOT/claude/jamai/.mcp.json'"
 "$ROOT/install.sh" --uninstall > "$T/uninstall.log" 2>&1
 check "uninstall removes every link" test "$(find "$T/bin" -maxdepth 1 -type l | wc -l)" -eq 0

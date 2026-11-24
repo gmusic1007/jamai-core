@@ -39,7 +39,8 @@ TOOLS=(bin/jamai
        workshop/jamai-legacy
        broadcast/jamai-cast broadcast/jamai-say
        moments/routine
-       mcp/jamai-mcp)
+       mcp/jamai-mcp
+       suno/jamai-suno)
 
 mode=install; yes=0
 for arg in "$@"; do
