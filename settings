@@ -26,6 +26,9 @@ JAMAI_MUSESCORE_HOME | quiet | ~/.local/share/jamai/musescore | Where jamai-muse
 JAMAI_MUSESCORE_PLUGINS_DIR | quiet | | MuseScore's plugins folder. Empty: the one MuseScore's own settings name, else ~/Documents/MuseScore4/Plugins.
 JAMAI_MUSESCORE_LIVE_PORT | quiet | 8765 | Port of the live-control plugin. The plugin fixes it at 8765: change it only for tests.
 
+# ── Listen: hearing a recording ──────────────────────────────────────
+JAMAI_LISTEN_VENV | quiet | ~/.local/share/jamai/listen-venv | Python environment holding the optional listening libraries (faster-whisper, Demucs, basic-pitch). `jamai listen-setup` makes it. Point it at another venv that has them to use that one.
+
 # ── Legacy: ABC sessions written before the package ──────────────────
 JAMAI_LEGACY_DIRS | ask | | Folders holding older ABC sessions, separated by ':'. Empty: name a folder each time.
 

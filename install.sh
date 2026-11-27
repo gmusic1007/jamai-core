@@ -34,6 +34,7 @@ fi
 TOOLS=(bin/jamai
        listen/jamai-midi.py listen/jamai-chords.py listen/jamai-chords-audio.py
        listen/jamai-measure.py listen/jamai-grille.py
+       listen/jamai-paroles.py listen/jamai-separe.py listen/jamai-melodie.py
        render/jamai-render render/jamai-musescore render/jamai-tab.py render/jamai-score-video.py render/jamai-scroll.py
        publish/jamai-publish-melody publish/jamai-hub
        workshop/jamai-legacy

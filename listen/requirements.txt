@@ -1,0 +1,32 @@
+# The optional listening libraries, installed by `jamai listen-setup` into JAMAI_LISTEN_VENV.
+#
+# Versions measured working together on 2026-11-27 (Linux x86_64, Python 3.11, CPU), on the
+# live take of « Monde immonde ». The listen/ core (jamai-measure, jamai-chords-audio,
+# jamai-grille, jamai-midi, jamai-chords) needs none of this: numpy, scipy and ffmpeg only.
+#
+#   jamai-paroles.py   faster-whisper   lyrics, word by word, with timestamps
+#   jamai-separe.py    demucs, torch    the voice apart from the accompaniment
+#   jamai-melodie.py   basic-pitch      the notes of a sung line, as MIDI (librosa for pyin)
+#
+# basic-pitch itself is NOT in this file: on Linux with Python 3.11 or later its metadata
+# pulls TensorFlow (about 600 MB) although its ONNX model, shipped in the wheel, runs on
+# onnxruntime alone. `jamai listen-setup` installs it in a second step with --no-deps, after
+# the libraries below, which are the ones it uses at runtime.
+
+numpy>=1.26,<2.3
+scipy>=1.11
+librosa==0.11.0
+soundfile>=0.12
+
+faster-whisper==1.2.1
+
+torch==2.6.0
+torchaudio==2.6.0
+demucs==4.1.0
+
+# what basic-pitch 0.4.0 imports, without TensorFlow
+onnxruntime==1.32.0
+pretty_midi>=0.2.10
+mir_eval>=0.6
+resampy>=0.4.2
+scikit-learn>=1.3
