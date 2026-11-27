@@ -21,6 +21,7 @@ réponse : l'outil affiche le tableau et dit laquelle il retient, et pourquoi.
     --tonalite <nom>   impose la tonalité au lieu de la proposer (« si♭ mineur »)
     --grille <nom>     impose la grille au lieu de la retenir (« 6/8 croche »)
     --levee <n>        impose la levée en unités de grille
+    --bpm <n>          impose le pouls, mesuré par jamai-measure.py sur la prise entière
     --abc <fichier>    écrit la partition (sinon : analyse seulement)
     --titre <texte>    titre de la partition
     --json             sort tout en JSON
@@ -472,6 +473,7 @@ def main():
     ap.add_argument('--levee', type=int); ap.add_argument('--abc')
     ap.add_argument('--titre', default='sans titre'); ap.add_argument('--json', action='store_true')
     ap.add_argument('--brut', action='store_true')
+    ap.add_argument('--bpm', type=float)
     a = ap.parse_args()
 
     if a.prise.lower().endswith(('.mid', '.midi')):
@@ -483,7 +485,11 @@ def main():
         sys.exit(f"  ✗ seulement {len(notes)} notes tenues — rien à mesurer ici")
 
     med_c, hors = justesse(notes)
-    p = pouls(notes)
+    # Le pouls d'une ligne chantée se devine mal sur ses seules attaques : sur « Monde immonde »
+    # (2026-11-27) les candidats tirés de la voix étaient 0,21 · 0,42 · 0,63 s, et aucun n'était
+    # le temps de la guitare (0,464 s, 129 BPM, que jamai-measure.py mesure sur la prise).
+    # --bpm l'impose : la grille se compare alors sur le vrai temps.
+    p = [60.0 / a.bpm] if a.bpm else pouls(notes)
     if not p:
         sys.exit("  ✗ pouls introuvable : les attaques sont trop espacées")
     phr = phrases(notes)
@@ -515,8 +521,9 @@ def main():
         if med_c > 25:
             print("  ⚠ au-delà de 25 cents les noms de notes sont des APPROXIMATIONS,")
             print("    pas une dictée. Dis-le à qui lit la partition.")
-        print(f"\n## pouls\n  intervalle d'attaque médian {p[0]:.3f} s ; candidats testés : "
-              + " · ".join(f"{x:.3f}s ({60/x:.0f} BPM)" for x in p))
+        print(f"\n## pouls\n  " + (f"imposé : {p[0]:.3f} s ({a.bpm:.1f} BPM)" if a.bpm else
+              f"intervalle d'attaque médian {p[0]:.3f} s ; candidats testés : "
+              + " · ".join(f"{x:.3f}s ({60/x:.0f} BPM)" for x in p)))
         print(f"  {len(phr)} phrases : " + " · ".join(str(len(x)) for x in phr) + " notes")
         print(f"\n## tonalité — l'outil PROPOSE, il ne tranche pas")
         for g in gammes[:4]:
