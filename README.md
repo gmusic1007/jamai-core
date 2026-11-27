@@ -46,7 +46,7 @@ The installer does four things, in this order:
    public address, the hub's port, the screen and speaker names. Enter keeps the value shown in brackets.
 2. **Writes them** to `~/.config/jamai/jamai.env` (plain `KEY=VALUE`). The one secret, the hub's
    admin token, is generated and kept apart in `secrets.env`, mode 600.
-3. **Links the 19 commands** into the folder you chose (default `~/.local/bin`). A file already
+3. **Links the 22 commands** into the folder you chose (default `~/.local/bin`). A file already
    there is renamed `name.bak-<stamp>`, never deleted.
 4. **Runs `jamai doctor`**, which names each missing program, the package that brings it, and
    what stops working without it.
@@ -61,6 +61,11 @@ The installer does four things, in this order:
 **System programs**, if you did not install with apt (Debian and Ubuntu names): `abcmidi abcm2ps fluidsynth fluid-soundfont-gm
 lame ffmpeg jq librsvg2-bin imagemagick python3-numpy python3-scipy python3-pil`. Optional, for
 a screen and a speaker: `pipx install catt edge-tts`. Tested on Ubuntu. Other systems are untested.
+
+The listening tools that separate a voice, transcribe lyrics or a melody need libraries too heavy
+for every install (faster-whisper, Demucs, basic-pitch). `jamai listen-setup` puts them, at
+versions measured together ([`listen/requirements.txt`](listen/requirements.txt)), in one Python
+environment of their own (`JAMAI_LISTEN_VENV`). The other listening tools need numpy only.
 
 MuseScore is not needed for the commands above. To add it, and to let an agent change the score open
 on your screen: [MuseScore: activate it, step by step](#musescore-activate-it-step-by-step).
@@ -260,8 +265,9 @@ claude plugin marketplace add gmusic1007/jamai-core       # or the plugin: tools
 claude plugin install jamai@jamai-core
 ```
 
-`jamai-mcp` offers sixteen tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
-`jamai_midi_notes`, `jamai_chords`, `jamai_tab`, `jamai_legacy_list`, `jamai_musescore`,
+`jamai-mcp` offers twenty-two tools over stdio: `jamai_doctor`, `jamai_config`, `jamai_render`,
+`jamai_midi_notes`, `jamai_chords`, for a recording `jamai_measure`, `jamai_chords_audio`,
+`jamai_grid`, `jamai_separate`, `jamai_lyrics` and `jamai_melody`, then `jamai_tab`, `jamai_legacy_list`, `jamai_musescore`,
 `jamai_publish_melody`, `jamai_list_melodies`, `jamai_events`, and for the score open in MuseScore,
 `musescore_live_status`, `musescore_get_score`, `musescore_live`, `musescore_export` and
 `musescore_video`. Only `jamai_publish_melody`
@@ -279,9 +285,12 @@ by name.
 |---|---|---|
 | `listen/` | `jamai-midi.py` | MIDI to a note-by-note listing and ABC |
 | | `jamai-chords.py` | the chord sounding on each beat of a MIDI file |
-| | `jamai-chords-audio.py` | chords and key from a recording |
-| | `jamai-measure.py` | tempo, structure, pitch and timbre of a recording |
+| | `jamai-chords-audio.py` | chords, bar grid and key from a recording |
+| | `jamai-measure.py` | tempo, beats, structure, pitch and timbre of a recording |
 | | `jamai-grille.py` | measure the bar grid before writing the score |
+| | `jamai-separe.py` | the voice apart from the accompaniment, with Demucs (`jamai listen-setup`) |
+| | `jamai-paroles.py` | lyrics of a recording, word by word, with faster-whisper (`jamai listen-setup`) |
+| | `jamai-melodie.py` | the notes of a sung line as MIDI, with basic-pitch (`jamai listen-setup`) |
 | `render/` | `jamai-render` | ABC to MIDI, WAV, MP3 and an engraved score |
 | | `jamai-musescore` | install or update MuseScore; open a melody in it; export, video and metadata with no window; live control (`--live`) |
 | | `jamai-tab.py` | six-line guitar tablature from ABC |
@@ -295,7 +304,7 @@ by name.
 | `moments/` | `routine` | a named moment of a house: its screen, speaker and posture |
 | `mcp/` | `jamai-mcp` | the tools as an MCP server |
 | `suno/` | `jamai-suno` | a composition to a Suno song, through your own Suno account: `prepare`, `generate`, `tools`, `login`, `status` ([suno/README.md](suno/README.md)) |
-| `bin/` | `jamai` | setup, config, doctor |
+| `bin/` | `jamai` | setup, config, doctor, listen-setup |
 
 ## Proof
 
@@ -303,9 +312,9 @@ by name.
 tests/selftest.sh
 ```
 
-It installs into a throwaway folder and checks 103 things: the settings and the links, a render,
+It installs into a throwaway folder and checks 137 things: the settings and the links, a render,
 the three publication cases, the hub's invite, signature, single delivery and refusals, byte
-ranges, a legacy session listed, converted for MuseScore and published, the defects fixed under
+ranges, the tempo, chords, grid and key heard in a rendered take, a legacy session listed, converted for MuseScore and published, the defects fixed under
 gmusic1007/jamai-core#4, live control against a stand-in MuseScore, the MCP server, and that no house address is in the packaged code. Where MuseScore is absent, its three checks are
 skipped and one other check confirms the command says so. It touches none of
 your files and reaches no outside address.
