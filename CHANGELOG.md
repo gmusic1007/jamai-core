@@ -1,10 +1,13 @@
 # Changes
 
 Notes for the documentation agent and for whoever releases the next version. Each entry says
-what changed for a person or an agent using the package, and what was measured. The version is
-not bumped here: the release is decided by Gérico.
+what changed for a person or an agent using the package, and what was measured. The version
+and the release are decided by Gérico.
 
-## Unreleased: listen/ hears a recording (branch `listen-analyse-261127`, 2026-11-27)
+## 0.5.0: listen/ hears a recording (2026-11-27)
+
+Merged from branch `listen-analyse-261127` and pushed to `main` on Gérico's approval, the same
+day. No apt package is built from it until a GitHub release is published for `v0.5.0`.
 
 Why: on 2026-11-27 JamAI transcribed « Monde immonde » from a live video almost entirely
 outside the package (faster-whisper and Demucs pip-installed into a scratch folder, librosa
@@ -79,7 +82,7 @@ had loaded did not name them, and the two it found by chance were wrong on that 
   route is ABC → `musescore_export`. Lyrics and chord symbols still do not reach MusicXML
   through that route (they go through MIDI): an open item, see the audit.
 - CREPE, essentia and madmom are not added (measured or reasoned in the audit).
-- No version number, no tag, no release, nothing pushed.
+- No tag and no GitHub release with the merge: the apt repository still serves 0.4.4.
 
 ### For the documentation agent
 
