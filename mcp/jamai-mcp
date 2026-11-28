@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """jamai-mcp — the jamai-core tools as an MCP server, over stdio.
 
-An agent that speaks the Model Context Protocol can render ABC, read a MIDI file, name its
-chords, draw a tablature, publish a melody and read what was announced, without knowing
-where this checkout lives.
+An agent that speaks the Model Context Protocol can listen to a recording (tempo, beats,
+chords, key, lyrics, melody, the voice apart from the guitar), render ABC, read a MIDI file,
+name its chords, draw a tablature, publish a melody and read what was announced, without
+knowing where this checkout lives.
 
   Claude Code:   claude mcp add jamai -- jamai-mcp
   Any client:    {"mcpServers": {"jamai": {"command": "jamai-mcp"}}}
@@ -72,6 +73,77 @@ def t_midi_notes(a):
 def t_chords(a):
     return run([sys.executable, tool("listen/jamai-chords.py"), str(a["midi_path"]),
                 str(int(a.get("beats_per_bar", 4)))])
+
+
+def py(path):
+    return [sys.executable, tool(path)]
+
+
+def t_measure(a):
+    args = py("listen/jamai-measure.py") + [str(a["path"])]
+    if a.get("beats_out"):
+        args += ["--temps", str(a["beats_out"])]
+    if a.get("json"):
+        args.append("--json")
+    return run(args)
+
+
+def t_chords_audio(a):
+    args = py("listen/jamai-chords-audio.py") + [str(a["path"])]
+    for key, flag in (("beats_path", "--temps"), ("window", "--fenetre"), ("beats_per_bar", "--temps-par-mesure"),
+                      ("smoothing", "--lissage"), ("start", "--debut"), ("end", "--fin")):
+        if a.get(key) is not None:
+            args += [flag, str(a[key])]
+    if a.get("per_beat"):
+        args.append("--par-temps")
+    if a.get("json"):
+        args.append("--json")
+    return run(args)
+
+
+def t_grid(a):
+    args = py("listen/jamai-grille.py") + [str(a["path"])]
+    for key, flag in (("key", "--tonalite"), ("grid", "--grille"), ("pickup", "--levee"), ("abc_out", "--abc"),
+                      ("title", "--titre"), ("bpm", "--bpm")):
+        if a.get(key) is not None:
+            args += [flag, str(a[key])]
+    if a.get("json"):
+        args.append("--json")
+    return run(args)
+
+
+def t_lyrics(a):
+    args = py("listen/jamai-paroles.py") + [str(a["path"])]
+    for key, flag in (("language", "--langue"), ("model", "--modele"), ("prompt", "--invite"),
+                      ("device", "--device"), ("json_out", "--json")):
+        if a.get(key):
+            args += [flag, str(a[key])]
+    if a.get("condition"):
+        args.append("--enchaine")
+    if a.get("words"):
+        args.append("--mots")
+    return run(args, timeout=3600)
+
+
+def t_separate(a):
+    args = py("listen/jamai-separe.py") + [str(a["path"])]
+    for key, flag in (("out", "--sortie"), ("model", "--modele"), ("device", "--device")):
+        if a.get(key):
+            args += [flag, str(a[key])]
+    if a.get("four_stems"):
+        args.append("--quatre")
+    return run(args, timeout=3600)
+
+
+def t_melody(a):
+    args = py("listen/jamai-melodie.py") + [str(a["path"])]
+    for key, flag in (("method", "--methode"), ("mid_out", "--mid"), ("json_out", "--json"),
+                      ("fmin", "--fmin"), ("fmax", "--fmax")):
+        if a.get(key):
+            args += [flag, str(a[key])]
+    if a.get("one_voice"):
+        args.append("--une-voix")
+    return run(args, timeout=900)
 
 
 def t_tab(a):
@@ -212,8 +284,9 @@ def schema(properties, required=()):
 
 STR, INT, BOOL = {"type": "string"}, {"type": "integer"}, {"type": "boolean"}
 TOOLS = [
-    ("jamai_doctor", "Check this install: which render, score, video, measure and broadcast tools are present, "
-     "which are missing, and what each missing one stops. Run it first when a jamai tool fails.",
+    ("jamai_doctor", "Check this install: which render, score, video, listen and broadcast tools are present, "
+     "which are missing, and what each missing one stops. The listen+ lines are the optional libraries of "
+     "jamai_separate, jamai_lyrics and jamai_melody. Run it first when a jamai tool fails.",
      schema({}), t_doctor),
     ("jamai_config", "Show every jamai setting, its value and where the value comes from. Secrets are hidden.",
      schema({}), t_config),
@@ -226,6 +299,77 @@ TOOLS = [
     ("jamai_chords", "Name the chord sounding on every beat of a MIDI file. Use it to check a harmony "
      "against what was intended, on the source and again on the render.",
      schema({"midi_path": STR, "beats_per_bar": dict(INT, description="Default 4.")}, ["midi_path"]), t_chords),
+    ("jamai_measure", "LISTEN, step 1: measure a recording (wav, m4a, mp3, mp4): duration, where it plays and "
+     "where it is silent, timbre, pitch classes, tempo and every beat. Use it first on any recording you are "
+     "asked to transcribe, before writing a script of your own. beats_out writes the beats as JSON for "
+     "jamai_chords_audio. A tempo candidate at half or double is the same music counted another way. "
+     "Numpy only: works on every install.",
+     schema({"path": dict(STR, description="The recording."),
+             "beats_out": dict(STR, description="Write the beats (seconds) to this JSON file."),
+             "json": dict(BOOL, description="Everything as JSON.")}, ["path"]), t_measure),
+    ("jamai_chords_audio", "LISTEN, step 2: the chords of a recording beat by beat, merged into chord changes, a "
+     "bar grid (| Em | Em | B7 | B7 |) with its pickup and any irregular bar, and the key decided two ways "
+     "(Krumhansl on bass and treble, and the function of the chords). Reads the bass apart from the chord, so G6 "
+     "and Em7 are told apart by their bass. Most reliable on the accompaniment stem of jamai_separate: on a live "
+     "take, 73 % of chord roots right on the stem and 68 % on the mix; the grid found 20 of 35 reference bar lines "
+     "on the stem and 2 on the mix. Trust root and major/minor; check 7ths, 9ths and sus by ear. Numpy only.",
+     schema({"path": dict(STR, description="The recording, ideally accompagnement.wav from jamai_separate."),
+             "beats_path": dict(STR, description="Beats JSON from jamai_measure beats_out. Default: detected here."),
+             "window": {"type": "number", "description": "Fixed windows of this many seconds instead of beats."},
+             "beats_per_bar": dict(INT, description="Default 4; 3 for a waltz."),
+             "smoothing": {"type": "number", "description": "Cost of a chord change. Default 0.2; 0 = each beat alone."},
+             "start": {"type": "number"}, "end": {"type": "number"},
+             "per_beat": dict(BOOL, description="Also one line per beat."),
+             "json": dict(BOOL, description="Everything as JSON.")}, ["path"]), t_chords_audio),
+    ("jamai_grid", "LISTEN, step 4, BEFORE writing a score: measure which bar grid (4/4, 6/8, 3/4…) a melody "
+     "fits, its pickup and its key, from a MIDI file (best: the one jamai_melody writes with one_voice) or a "
+     "monophonic recording, and with abc_out write the ABC on that grid. Pass bpm, the tempo jamai_measure "
+     "found: guessed from sung onsets alone, the pulse misses on a live take. It refuses a note value that cannot be engraved. "
+     "Read its table of grids: the one it keeps has the fewest distinct note values at an acceptable error.",
+     schema({"path": dict(STR, description="A .mid (from jamai_melody) or a monophonic recording."),
+             "key": dict(STR, description="Impose the key, in French: « mi mineur »."),
+             "grid": dict(STR, description="Impose the grid: « 4/4 · croche », « 6/8 · croche »…"),
+             "pickup": dict(INT, description="Impose the pickup, in grid units."),
+             "bpm": {"type": "number", "description": "Impose the pulse: the tempo from jamai_measure."},
+             "abc_out": dict(STR, description="Write the ABC score here."),
+             "title": STR, "json": BOOL}, ["path"]), t_grid),
+    ("jamai_separate", "LISTEN, step 0 for a song: separate the voice from the accompaniment with Demucs, "
+     "writing voix.wav and accompagnement.wav (four_stems: voix, batterie, basse, autre). Do it before "
+     "jamai_melody (a melody under a guitar is lost: 12 % of note onsets instead of 70 %) and before "
+     "jamai_chords_audio on a song with singing. Needs `jamai listen-setup` once; jamai_doctor says if it is "
+     "there. Runs on the CPU by default (a few minutes per song): pass device cuda only when the person said "
+     "the GPU is free.",
+     schema({"path": dict(STR, description="The recording (wav, m4a, mp3, mp4)."),
+             "out": dict(STR, description="Output folder. Default: <recording>-pistes/ beside it."),
+             "model": dict(STR, description="htdemucs_ft (default, finest voice) or htdemucs (faster)."),
+             "device": {"type": "string", "enum": ["cpu", "cuda"]},
+             "four_stems": BOOL}, ["path"]), t_separate),
+    ("jamai_lyrics", "LISTEN: the lyrics of a recording with faster-whisper, phrase by phrase and word by word, "
+     "with times and confidence (lp below -0.8 is doubtful). For a song: run it on voix.wav from "
+     "jamai_separate and again on the mix, with and without condition, with a prompt holding the title; keep "
+     "a line only when the passes agree and mark the others [uncertain] with their time, never complete a "
+     "line no pass hears. language fr for a French song; leave it empty for speech that mixes languages. "
+     "Needs `jamai listen-setup` once. large-v3 on the CPU takes about 3 minutes for a 2-minute song.",
+     schema({"path": dict(STR, description="The recording, ideally voix.wav from jamai_separate."),
+             "language": dict(STR, description="fr, en… Empty: detected."),
+             "model": dict(STR, description="large-v3 (default), medium, small, base."),
+             "prompt": dict(STR, description="Words expected: the title, a name."),
+             "condition": dict(BOOL, description="Condition each phrase on the previous one."),
+             "device": {"type": "string", "enum": ["cpu", "cuda"]},
+             "json_out": dict(STR, description="Write segments and words to this JSON file."),
+             "words": dict(BOOL, description="Print every word with its probability.")}, ["path"]), t_lyrics),
+    ("jamai_melody", "LISTEN, step 3: the notes of a sung or played line, with onset, end and pitch, by "
+     "basic-pitch (default) or pyin, and with mid_out a MIDI file ready for jamai_grid. Give it voix.wav from "
+     "jamai_separate. Measured on a line with known notes: basic-pitch 0.70 onset F1 and 0.99 pitch, pyin 0.64 "
+     "and 0.90; the same line under a guitar 0.12, and separated first by jamai_separate 0.44. It warns when the "
+     "track holds more than one note at a time. Needs `jamai listen-setup` once.",
+     schema({"path": dict(STR, description="A separated voice or solo line."),
+             "method": {"type": "string", "enum": ["basic-pitch", "pyin"]},
+             "mid_out": dict(STR, description="Write the line as MIDI here."),
+             "json_out": dict(STR, description="Write the notes as JSON here."),
+             "one_voice": dict(BOOL, description="Keep one note at a time, the loudest: what jamai_grid expects, "
+                               "at the cost of onsets (0.55 instead of 0.70 on the solo line)."),
+             "fmin": {"type": "number"}, "fmax": {"type": "number"}}, ["path"]), t_melody),
     ("jamai_tab", "Draw a six-line guitar tablature (PNG) from one voice of an ABC file.",
      schema({"abc_path": STR, "voice": dict(INT, description="Voice number, default 1."),
              "out": dict(STR, description="Output PNG path.")}, ["abc_path"]), t_tab),
@@ -297,8 +441,11 @@ def handle(msg):
         return {"protocolVersion": params.get("protocolVersion") or "2024-11-05",
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": "jamai-core", "version": VERSION},
-                "instructions": "Tools for writing, hearing and publishing music from ABC notation. "
-                                "Render and listen before publishing. Publish only when asked."}
+                "instructions": "Tools for listening to a recording, and for writing, hearing and publishing "
+                                "music from ABC notation. To transcribe a recording, use the LISTEN tools in order "
+                                "before writing any script of your own: jamai_separate (a song), jamai_measure, "
+                                "jamai_chords_audio, jamai_lyrics, jamai_melody, jamai_grid. Render and listen "
+                                "before publishing. Publish only when asked."}
     if method == "ping":
         return {}
     if method == "tools/list":

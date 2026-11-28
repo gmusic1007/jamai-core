@@ -1,0 +1,20 @@
+X:1
+T:Listen Grid
+C:jamai-core selftest — known chords, tempo and key for the listen/ tools
+% 16 bars at 120 BPM, E minor: | Em Em B7 B7 | Em Em B7 B7 | G G A A | G G B7 B7 |
+% A guitar strums the chords, a bass plays the roots, a voice sings over them: the
+% chords must be heard through the voice. Rendered stereo by FluidSynth, as a real take is.
+M:4/4
+L:1/8
+Q:1/4=120
+K:Em
+%%MIDI program 53
+%%MIDI gchord fzczczcz
+%%MIDI chordprog 25
+%%MIDI bassprog 32
+%%MIDI chordvol 70
+%%MIDI bassvol 80
+"Em"E2 G2 B2 G2 | "Em"E4 z4 | "B7"F2 A2 B2 A2 | "B7"^D4 z4 |
+"Em"G2 F2 E2 G2 | "Em"B4 z4 | "B7"A2 G2 F2 ^D2 | "B7"F4 z4 |
+"G"B2 d2 B2 G2 | "G"D4 z4 | "A"E2 A2 c2 A2 | "A"E4 z4 |
+"G"G2 B2 d2 B2 | "G"G4 z4 | "B7"F2 A2 B2 ^d2 | "B7"B4 z4 |]

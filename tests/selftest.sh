@@ -10,7 +10,8 @@
 # unchanged, revised); the hub accepts a subscription by invite only, delivers one signed
 # POST per fact, refuses private targets, serves the page and byte ranges; a legacy ABC
 # session is listed, converted for MuseScore and published; the live-control plugin is installed and a
-# stand-in MuseScore receives commands; the MCP server lists and runs its tools.
+# stand-in MuseScore receives commands; the listen/ tools hear the tempo, chords, grid and key of a
+# rendered take; the MCP server lists and runs its tools.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
@@ -311,6 +312,29 @@ else
   skip "--install-musescore: not a Linux x86_64 or aarch64 machine (6 checks)"
 fi
 
+echo "── listen"
+# A rendered take with known chords, tempo and key: tests/listen-grid.abc, stereo like a real one.
+jamai-render "$ROOT/tests/listen-grid.abc" > "$T/listen-render.log" 2>&1
+LW="$T/state/renders/listen-grid/listen-grid.wav"
+LJ="$ROOT/tests/listen_check.py"
+check "the listen fixture renders, in stereo" test "$(ffprobe -v error -show_entries stream=channels -of csv=p=0 "$LW" 2>/dev/null)" = 2
+jamai-measure.py "$LW" --temps "$T/beats.json" --json > "$T/measure.json" 2> "$T/measure.err"
+check "jamai-measure reads a stereo WAV at its length and finds 120 BPM" python3 "$LJ" measure "$T/measure.json" "$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$LW")"
+check "jamai-measure writes the beats for jamai-chords-audio" python3 "$LJ" beats "$T/beats.json"
+jamai-chords-audio.py "$LW" --temps "$T/beats.json" --par-temps --json > "$T/chords-audio.json" 2> "$T/chords-audio.err"
+check "jamai-chords-audio hears 90 % of the chord roots through the voice" python3 "$LJ" roots "$T/chords-audio.json" 0.9
+check "jamai-chords-audio writes the grid, 14 bars of 16 at least" python3 "$LJ" grid "$T/chords-audio.json" 14
+check "jamai-chords-audio names E minor, by both methods" python3 "$LJ" key "$T/chords-audio.json"
+check "jamai-chords-audio reads a m4a through ffmpeg" bash -c "ffmpeg -nostdin -v error -y -i '$LW' -c:a aac '$T/take.m4a' && jamai-chords-audio.py '$T/take.m4a' | grep -q 'E minor'"
+check "listen-setup --dry-run names its three steps and installs nothing" bash -c "JAMAI_LISTEN_VENV='$T/listen-venv' jamai listen-setup --dry-run | grep -q 'nothing done' && test ! -e '$T/listen-venv'"
+check "doctor reports the optional listening libraries" grep -q 'listen+' "$T/doctor.log"
+if python3 -c 'import faster_whisper' 2>/dev/null; then
+  skip "jamai-paroles without its libraries: this python3 has faster-whisper"
+else
+  JAMAI_LISTEN_VENV="$T/no-venv" jamai-paroles.py "$LW" > "$T/paroles.out" 2>&1; paroles_rc=$?
+  check "jamai-paroles without its libraries says to run jamai listen-setup (exit 3)" bash -c "test $paroles_rc -eq 3 && grep -q 'jamai listen-setup' '$T/paroles.out'"
+fi
+
 echo "── mcp"
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"selftest","version":"0"}}}' \
@@ -324,9 +348,11 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"setTempo","params":{"bpm":72}}}}' \
   '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"rm"}}}' \
   '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"musescore_live","arguments":{"action":"addDynamic","params":{"dynamic":"f"}}}}' \
+  '{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"jamai_measure","arguments":{"path":"'"$LW"'"}}}' \
+  '{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"jamai_chords_audio","arguments":{"path":"'"$LW"'","beats_path":"'"$T/beats.json"'"}}}' \
   | jamai-mcp > "$T/mcp.out" 2> "$T/mcp.err"
 check "mcp answers initialize" bash -c "sed -n 1p '$T/mcp.out' | jq -e '.result.serverInfo.name == \"jamai-core\"'"
-check "mcp lists 16 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 16'"
+check "mcp lists 22 tools" bash -c "sed -n 2p '$T/mcp.out' | jq -e '.result.tools | length == 22'"
 check "mcp lists the melodies" bash -c "sed -n 3p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"second-light\"))'"
 check "mcp names chords from a MIDI file" bash -c "sed -n 4p '$T/mcp.out' | jq -e '.result.isError == false'"
 check "mcp refuses an unknown tool" bash -c "sed -n 5p '$T/mcp.out' | jq -e '.error.code == -32601'"
@@ -336,7 +362,10 @@ check "mcp changes the tempo in the open score" bash -c "sed -n 8p '$T/mcp.out' 
 check "mcp refuses an action MuseScore does not know" bash -c "sed -n 9p '$T/mcp.out' | jq -e '.result.isError == true'"
 check "mcp sends a forte to the open score" bash -c "sed -n 10p '$T/mcp.out' | jq -e '.result.isError == false' >/dev/null && tail -n1 '$T/live.log' | jq -e '.action == \"addDynamic\" and .params.dynamic == \"f\"'"
 check "the plugin answers every action the agent tool offers" bash -c "for a in \$(python3 -c \"import re; s=open('$ROOT/mcp/jamai-mcp').read(); print(' '.join(re.findall(r'\\\"([a-zA-Z]+)\\\"', s[s.index('LIVE_ACTIONS = ['):s.index(']', s.index('LIVE_ACTIONS = ['))])))\"); do grep -q \"case \\\"\$a\\\":\" '$ROOT/musescore/musescore-mcp-websocket.qml' || { echo missing \$a; exit 1; }; done"
-check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 10
+check "mcp measures a recording" bash -c "sed -n 11p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"120.0 BPM\"))'"
+check "mcp names the chords and key of a recording" bash -c "sed -n 12p '$T/mcp.out' | jq -e '.result.isError == false and (.result.content[0].text | test(\"E minor\"))'"
+check "mcp tells an agent to listen with its tools before writing a script" bash -c "sed -n 1p '$T/mcp.out' | jq -e '.result.instructions | test(\"jamai_measure\")'"
+check "a notification gets no answer" test "$(wc -l < "$T/mcp.out")" -eq 12
 
 echo "── suno"
 check "jamai-suno answers --help through its link" bash -c "jamai-suno --help | grep -q 'prepare,generate,tools,login,status'"

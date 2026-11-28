@@ -1,6 +1,6 @@
 ---
 name: jamai
-description: Write, hear, check and publish music from ABC notation with the jamai-core tools. Use when a person asks for a melody, a score, a tablature, the chords of a MIDI file or a recording, a score video, or to publish a melody so they can listen to it. Also use when a jamai tool fails and the install needs checking.
+description: Listen to a recording, and write, hear, check and publish music from ABC notation with the jamai-core tools. Use when a person asks to transcribe a recording or a video (tempo, chords, key, lyrics, melody, a lead sheet), for a melody, a score, a tablature, the chords of a MIDI file, a score video, or to publish a melody so they can listen to it. Also use when a jamai tool fails and the install needs checking.
 ---
 
 # jamai — music from ABC notation
@@ -25,6 +25,35 @@ package that brings it, and what stops working without it.
    (MCP: `jamai_publish_melody`) adds the melody to their page and prints the listen address.
    Give them that address.
 
+## Listening to a recording: the package's tools first
+
+When a person asks what is in a recording (a take, a live video, a phone memo), use these
+before writing any analysis script of your own. Each one was measured on a real take, and each
+says what it cannot hear. The MCP names are in brackets.
+
+0. **A song with singing: separate first.** `jamai-separe.py take.wav` (`jamai_separate`) writes
+   `voix.wav` and `accompagnement.wav`. A melody under a guitar is lost (12 % of note onsets
+   found instead of 70 %). CPU by default; the GPU only when the person said it is free.
+1. **Measure.** `jamai-measure.py take.wav --temps beats.json` (`jamai_measure`): duration, where
+   it plays, timbre, tempo and every beat. Any format ffmpeg reads.
+2. **Chords, grid and key.** `jamai-chords-audio.py accompagnement.wav --temps beats.json`
+   (`jamai_chords_audio`): chord changes, a bar grid with its pickup and irregular bars, and
+   the key decided two ways. Trust the root and major/minor; check 7ths, 9ths and sus by ear.
+3. **Lyrics.** `jamai-paroles.py voix.wav --langue fr --json p1.json` (`jamai_lyrics`). Several
+   passes (voice and mix, with and without `--enchaine`, with an `--invite` holding the title),
+   keep what they agree on, mark the rest `[incertain]` with its time. Never complete a line.
+4. **Melody.** `jamai-melodie.py voix.wav --une-voix --mid ligne.mid` (`jamai_melody`): the
+   notes, by basic-pitch, as MIDI, one at a time as jamai-grille expects.
+5. **Grid of the melody, then the score.** `jamai-grille.py ligne.mid --bpm <tempo of step 1>
+   --abc ligne.abc` (`jamai_grid`) chooses the meter and the note values before writing. Without
+   `--bpm` it guesses the pulse from the sung onsets, and on a live take that guess misses. Then render, check the
+   chords of the render against step 2 with `jamai-chords.py`, and export with
+   `musescore_export` (MusicXML, PDF).
+
+Steps 0, 3 and 4 need the optional libraries: `jamai listen-setup` installs them once, and
+`jamai doctor` lists them under `listen+`. If they are missing, say so and run steps 1, 2 and 5;
+do not assemble the libraries by hand in a scratch folder.
+
 ## What each tool is for
 
 | a person asks | tool |
@@ -32,8 +61,11 @@ package that brings it, and what stops working without it.
 | "let me hear it" | `jamai-render` |
 | "what did I play?" (MIDI) | `jamai-midi.py` |
 | "which chords?" (MIDI) | `jamai-chords.py <mid> <beats-per-bar>` |
-| "which chords, which key?" (recording) | `jamai-chords-audio.py` |
+| "which chords, which key, which grid?" (recording) | `jamai-chords-audio.py` |
 | "what tempo, what structure?" (recording) | `jamai-measure.py` |
+| "the voice alone", "the guitar alone" | `jamai-separe.py` |
+| "the lyrics" | `jamai-paroles.py`, several passes |
+| "the melody", "what does she sing?" | `jamai-melodie.py` on the separated voice |
 | "write it down in bars" | `jamai-grille.py`, before writing the score |
 | "with the tablature" | `jamai-tab.py file.abc --voix 1 --out tab.png` |
 | "a video of the score" | `jamai-scroll.py` (scrolls left to right, red playhead) or `jamai-score-video.py` (one system at a time) |

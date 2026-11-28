@@ -8,6 +8,8 @@
 #   jamai config unset NAME      remove one value from the config
 #   jamai config path            where the config lives
 #   jamai doctor                 which tools are present, which are missing, and what stops working
+#   jamai listen-setup [--dry-run]  install the optional listening libraries (lyrics, separation,
+#                                   melody) into JAMAI_LISTEN_VENV, at the versions of listen/requirements.txt
 #   jamai tools                  the commands this package installs
 #   jamai version
 #
@@ -214,6 +216,63 @@ piptool() { # piptool GROUP BINARY PIP_NAME "what stops working"
   else printf 'MISSING  %-8s %-13s pipx install %s — %s\n' "$1" "$2" "$3" "$4"; count_missing "$1"; fi
 }
 
+listen_venv() {  # the optional listening libraries, in JAMAI_LISTEN_VENV
+  local py="${JAMAI_LISTEN_VENV:-}/bin/python" m out
+  if [ -z "${JAMAI_LISTEN_VENV:-}" ] || [ ! -x "$py" ]; then
+    printf 'MISSING  %-8s %-13s %s — %s\n' listen+ venv "jamai listen-setup" \
+      "no lyrics (jamai-paroles), no separation (jamai-separe), no melody (jamai-melodie)"
+    count_missing listen+; return
+  fi
+  printf 'ok       %-8s %-13s %s\n' listen+ venv "$JAMAI_LISTEN_VENV"
+  out="$("$py" - <<'PY' 2>/dev/null
+import importlib.util
+for m, what in (("faster_whisper", "jamai-paroles"), ("demucs", "jamai-separe"), ("torch", "jamai-separe"),
+                ("basic_pitch", "jamai-melodie"), ("onnxruntime", "jamai-melodie"), ("librosa", "jamai-melodie --methode pyin")):
+    print(m, "ok" if importlib.util.find_spec(m) else "missing", what)
+PY
+)"
+  while read -r m state what; do
+    [ -n "$m" ] || continue
+    if [ "$state" = ok ]; then printf 'ok       %-8s %-13s in the listen venv\n' listen+ "$m"
+    else printf 'MISSING  %-8s %-13s %s — %s stops\n' listen+ "$m" "jamai listen-setup" "$what"; count_missing listen+; fi
+  done <<<"$out"
+}
+
+cmd_listen_setup() {
+  local dry=0 arg
+  for arg in "$@"; do case "$arg" in --dry-run) dry=1 ;; *) die "usage: jamai listen-setup [--dry-run]" ;; esac; done
+  . "$ROOT/lib/jamai-env.sh"
+  local venv="${JAMAI_LISTEN_VENV:-}" req="$ROOT/listen/requirements.txt" bp="basic-pitch==0.4.0"
+  [ -n "$venv" ] || die "JAMAI_LISTEN_VENV is empty: jamai config set JAMAI_LISTEN_VENV <folder>"
+  [ -r "$req" ] || die "no $req"
+  local -a make install bpi
+  if command -v uv >/dev/null 2>&1; then
+    make=(uv venv -q -p 3.11 "$venv")
+    install=(uv pip install --python "$venv/bin/python" -r "$req")
+    bpi=(uv pip install --python "$venv/bin/python" --no-deps "$bp")
+  else
+    make=(python3 -m venv "$venv")
+    install=("$venv/bin/python" -m pip install -r "$req")
+    bpi=("$venv/bin/python" -m pip install --no-deps "$bp")
+  fi
+  echo "jamai listen-setup — the optional listening libraries, into $venv"
+  echo "  1. ${make[*]}"
+  echo "  2. ${install[*]}"
+  echo "  3. ${bpi[*]}     (without TensorFlow: its ONNX model runs on onnxruntime)"
+  echo "  About 3 GB of download when nothing is cached (torch is most of it). Models download on first use."
+  [ "$dry" -eq 1 ] && { echo "--dry-run: nothing done."; return 0; }
+  if [ -x "$venv/bin/python" ]; then echo "  $venv exists: installing into it."; else "${make[@]}" || die "could not create $venv"; fi
+  "${install[@]}" || die "installing $req failed"
+  "${bpi[@]}" || die "installing $bp failed"
+  "$venv/bin/python" - <<'PY' || die "the libraries installed but do not import"
+import logging; logging.disable(logging.WARNING)
+import faster_whisper, demucs, torch, basic_pitch, onnxruntime, librosa
+print("  ok: faster-whisper %s · demucs %s · torch %s · basic-pitch · onnxruntime %s · librosa %s"
+      % (faster_whisper.__version__, demucs.__version__, torch.__version__, onnxruntime.__version__, librosa.__version__))
+PY
+  echo "jamai listen-setup: done. jamai-paroles.py, jamai-separe.py and jamai-melodie.py use $venv on their own."
+}
+
 cmd_doctor() {
   . "$ROOT/lib/jamai-env.sh"
   echo "jamai doctor — jamai-core $(cat "$ROOT/VERSION" 2>/dev/null) at $ROOT"
@@ -231,9 +290,11 @@ cmd_doctor() {
   tool    video   ffmpeg       ffmpeg         "no score video"
   tool    video   convert      imagemagick    "no score video"
   tool    measure python3      python3        "none of the listen/ and render/ tools run"
-  pytool  measure numpy        python3-numpy  "jamai-measure, jamai-chords-audio and jamai-scroll stop"
-  pytool  measure scipy        python3-scipy  "jamai-measure stops"
+  pytool  measure numpy        python3-numpy  "jamai-measure, jamai-chords-audio, jamai-grille and jamai-scroll stop"
+  pytool  measure scipy        python3-scipy  "jamai-score-video stops"
   pytool  measure PIL          python3-pil    "jamai-tab, jamai-scroll and jamai-score-video stop"
+  tool    listen  ffmpeg       ffmpeg         "listen/ reads only 16-bit WAV: no m4a, mp3 or video"
+  listen_venv
   piptool cast    catt         catt           "jamai-cast and jamai-say cannot reach a screen or a speaker"
   piptool say     edge-tts     edge-tts       "jamai-say has no voice"
   local ms="${JAMAI_MUSESCORE_BIN:-}" c
@@ -262,9 +323,12 @@ cmd_tools() {
   cat <<'EOF'
 listen/     jamai-midi.py           MIDI to a note-by-note listing and ABC
             jamai-chords.py         the chord sounding on each beat of a MIDI file
-            jamai-chords-audio.py   chords and key from a recording
-            jamai-measure.py        tempo, structure, pitch and timbre of a recording
+            jamai-chords-audio.py   chords, bar grid and key from a recording
+            jamai-measure.py        tempo, beats, structure, pitch and timbre of a recording
             jamai-grille.py         measure the bar grid before writing the score
+            jamai-paroles.py        lyrics of a recording, word by word        (jamai listen-setup)
+            jamai-separe.py         the voice apart from the accompaniment     (jamai listen-setup)
+            jamai-melodie.py        the notes of a sung line, as MIDI          (jamai listen-setup)
 render/     jamai-render            ABC to MIDI, WAV, MP3 and an engraved score
             jamai-musescore         open a melody in MuseScore as an editable score
             jamai-tab.py            six-line guitar tablature from ABC
@@ -285,6 +349,7 @@ case "${1:-}" in
   setup)   shift; cmd_setup "$@" ;;
   config)  shift; cmd_config "$@" ;;
   doctor)  shift; cmd_doctor "$@" ;;
+  listen-setup) shift; cmd_listen_setup "$@" ;;
   tools)   cmd_tools ;;
   version|--version|-V) echo "jamai-core $(cat "$ROOT/VERSION" 2>/dev/null || echo unknown)" ;;
   hub)     shift; exec "$ROOT/publish/jamai-hub" "$@" ;;
